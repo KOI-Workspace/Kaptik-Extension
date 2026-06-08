@@ -3,8 +3,10 @@ import {
   DEFAULT_SETTINGS,
   getSettings,
   updateSettings,
+  isPaid,
   PRICING_URL,
   type KaptikSettings,
+  type PlanTier,
 } from "@/shared/settings";
 import { getMessages, UI_LANGUAGE_OPTIONS, type Messages } from "@/shared/i18n";
 import { requestStatus, startGeneration } from "@/shared/messaging";
@@ -125,13 +127,25 @@ export function Popup() {
           <div className="popup-subtitle">{t.appTagline}</div>
         </div>
         <div className="popup-header-right">
-          <button
-            type="button"
-            className={"pro-badge" + (settings.isPro ? " is-pro" : "")}
-            onClick={openPricing}
-          >
-            {settings.isPro ? `★ ${t.proBadgeActive}` : `🔒 ${t.proBadgeInactive}`}
-          </button>
+          {isPaid(settings.plan) ? (
+            // 결제 후: 현재 등급 + 프로필 (이름 이니셜 아바타)
+            <div
+              className={"account-badge plan-" + settings.plan}
+              title={settings.profileName}
+            >
+              <span className="account-avatar">
+                {settings.profileName.trim().charAt(0).toUpperCase()}
+              </span>
+              <span className="account-plan">
+                {settings.plan === "pro" ? t.planPro : t.planBasic}
+              </span>
+            </div>
+          ) : (
+            // 미결제: 결제하러 가기
+            <button type="button" className="pro-badge" onClick={openPricing}>
+              🔒 {t.ctaUnlock}
+            </button>
+          )}
           {target && status?.state === "available" && (
             <Switch
               checked={settings.enabled}
@@ -297,7 +311,7 @@ function AvailableView({
 
   return (
     <>
-      {!settings.isPro && <UpgradeBanner t={t} onUpgrade={onUpgrade} />}
+      {!isPaid(settings.plan) && <UpgradeBanner t={t} onUpgrade={onUpgrade} />}
 
       <div className="preview" aria-hidden>
         {settings.showSpeaker && <div className="preview-speaker">RM</div>}
@@ -327,12 +341,47 @@ function AvailableView({
         </div>
 
         <div className="row">
+          <span className="row-label">{t.speakerLabel}</span>
+          <Switch
+            checked={settings.showSpeaker}
+            onChange={(v) => patch({ showSpeaker: v })}
+            ariaLabel={t.speakerLabel}
+          />
+        </div>
+
+        <div className="row">
           <span className="row-label">{t.panelLabel}</span>
           <Switch
             checked={settings.showPanel}
             onChange={(v) => patch({ showPanel: v })}
             ariaLabel={t.panelLabel}
           />
+        </div>
+
+        <div className="row">
+          <span className="row-label">{t.lineCountLabel}</span>
+          <div className="segment" role="group" aria-label={t.lineCountLabel}>
+            <button
+              type="button"
+              className={
+                "segment-btn" + (settings.overlayLineCount === 1 ? " is-on" : "")
+              }
+              aria-pressed={settings.overlayLineCount === 1}
+              onClick={() => patch({ overlayLineCount: 1 })}
+            >
+              {t.lineCountOne}
+            </button>
+            <button
+              type="button"
+              className={
+                "segment-btn" + (settings.overlayLineCount === 2 ? " is-on" : "")
+              }
+              aria-pressed={settings.overlayLineCount === 2}
+              onClick={() => patch({ overlayLineCount: 2 })}
+            >
+              {t.lineCountTwo}
+            </button>
+          </div>
         </div>
 
         <div className="row slider-row">
@@ -371,14 +420,19 @@ function AvailableView({
           />
         </div>
 
-        {/* 개발용: Pro 상태를 직접 토글해 결제/미결제 화면을 확인 */}
+        {/* 개발용: 결제 등급을 직접 바꿔 미결제/Basic/Pro 화면을 확인 */}
         <div className="row">
-          <span className="row-label row-dev">{t.proTestLabel}</span>
-          <Switch
-            checked={settings.isPro}
-            onChange={(v) => patch({ isPro: v })}
-            ariaLabel={t.proTestLabel}
-          />
+          <span className="row-label row-dev">{t.planTestLabel}</span>
+          <select
+            className="select"
+            value={settings.plan}
+            aria-label={t.planTestLabel}
+            onChange={(e) => patch({ plan: e.target.value as PlanTier })}
+          >
+            <option value="free">Free</option>
+            <option value="basic">Basic</option>
+            <option value="pro">Pro</option>
+          </select>
         </div>
       </div>
     </>

@@ -42,21 +42,26 @@ export interface Messages {
   viewSubtitlesBtn: string;
   // 설정 항목
   langLabel: string;
+  speakerLabel: string;
   panelLabel: string;
+  lineCountLabel: string;
+  lineCountOne: string;
+  lineCountTwo: string;
   fontSizeLabel: string;
   bgOpacityLabel: string;
   // aria
   ariaToggleSubtitles: string;
   ariaNotifyReady: string;
-  // 결제/Pro
-  proBadgeInactive: string;
-  proBadgeActive: string;
+  // 결제/등급
+  ctaUnlock: string;
+  planBasic: string;
+  planPro: string;
   upgradeTitle: string;
   upgradeDesc: string;
   upgradeCta: string;
   panelLockTitle: string;
   panelLockDesc: string;
-  proTestLabel: string;
+  planTestLabel: string;
   // 패널
   panelTitle: string;
   panelEmpty: string;
@@ -90,19 +95,24 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     readyTitle: "Subtitles are ready",
     viewSubtitlesBtn: "View subtitles",
     langLabel: "Subtitle language",
+    speakerLabel: "Speaker labels",
     panelLabel: "History panel (right)",
+    lineCountLabel: "Subtitle lines",
+    lineCountOne: "1 line",
+    lineCountTwo: "2 lines",
     fontSizeLabel: "Subtitle size",
     bgOpacityLabel: "Background opacity",
     ariaToggleSubtitles: "Toggle subtitles",
     ariaNotifyReady: "Notify when ready",
-    proBadgeInactive: "Pro inactive",
-    proBadgeActive: "Pro",
+    ctaUnlock: "Upgrade",
+    planBasic: "Basic",
+    planPro: "Pro",
     upgradeTitle: "Unlock everything with Pro",
     upgradeDesc: "Limited-time 50% off — speaker labels, history & cultural notes.",
     upgradeCta: "Upgrade to Pro",
     panelLockTitle: "Subtitle history is a Pro feature",
     panelLockDesc: "Upgrade to follow the full speaker-by-speaker history.",
-    proTestLabel: "Pro (dev test)",
+    planTestLabel: "Plan (dev test)",
     panelTitle: "Subtitle history",
     panelEmpty: "Subtitles will start soon",
     latest: "Latest",
@@ -133,19 +143,24 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     readyTitle: "字幕の準備ができました",
     viewSubtitlesBtn: "字幕を見る",
     langLabel: "字幕の言語",
+    speakerLabel: "話者ラベル",
     panelLabel: "右側の履歴パネル",
+    lineCountLabel: "字幕の行数",
+    lineCountOne: "1行",
+    lineCountTwo: "2行",
     fontSizeLabel: "字幕サイズ",
     bgOpacityLabel: "背景の透明度",
     ariaToggleSubtitles: "字幕のオン/オフ",
     ariaNotifyReady: "完了時に通知",
-    proBadgeInactive: "Pro 未契約",
-    proBadgeActive: "Pro",
+    ctaUnlock: "アップグレード",
+    planBasic: "Basic",
+    planPro: "Pro",
     upgradeTitle: "Proですべての機能を解放",
     upgradeDesc: "期間限定50%オフ — 話者ラベル・履歴・文化メモ。",
     upgradeCta: "Proにアップグレード",
     panelLockTitle: "字幕履歴はPro機能です",
     panelLockDesc: "アップグレードで話者ごとの全履歴を表示できます。",
-    proTestLabel: "Pro（テスト）",
+    planTestLabel: "プラン（テスト）",
     panelTitle: "字幕履歴",
     panelEmpty: "まもなく字幕が始まります",
     latest: "最新",
@@ -174,19 +189,24 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     readyTitle: "字幕已准备好",
     viewSubtitlesBtn: "查看字幕",
     langLabel: "字幕语言",
+    speakerLabel: "角色标签",
     panelLabel: "右侧历史面板",
+    lineCountLabel: "字幕行数",
+    lineCountOne: "1 行",
+    lineCountTwo: "2 行",
     fontSizeLabel: "字幕大小",
     bgOpacityLabel: "背景透明度",
     ariaToggleSubtitles: "开关字幕",
     ariaNotifyReady: "完成时通知",
-    proBadgeInactive: "Pro 未激活",
-    proBadgeActive: "Pro",
+    ctaUnlock: "升级",
+    planBasic: "Basic",
+    planPro: "Pro",
     upgradeTitle: "升级 Pro 解锁全部功能",
     upgradeDesc: "限时 5 折 — 角色标签、历史记录和文化注释。",
     upgradeCta: "升级到 Pro",
     panelLockTitle: "字幕历史是 Pro 功能",
     panelLockDesc: "升级后可查看完整的分角色历史记录。",
-    proTestLabel: "Pro（测试）",
+    planTestLabel: "套餐（测试）",
     panelTitle: "字幕历史",
     panelEmpty: "字幕即将开始",
     latest: "最新",
@@ -217,19 +237,24 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     readyTitle: "Subtitle sudah siap",
     viewSubtitlesBtn: "Lihat subtitle",
     langLabel: "Bahasa subtitle",
+    speakerLabel: "Label pembicara",
     panelLabel: "Panel riwayat (kanan)",
+    lineCountLabel: "Baris subtitle",
+    lineCountOne: "1 baris",
+    lineCountTwo: "2 baris",
     fontSizeLabel: "Ukuran subtitle",
     bgOpacityLabel: "Transparansi latar",
     ariaToggleSubtitles: "Aktifkan/nonaktifkan subtitle",
     ariaNotifyReady: "Beri tahu saat siap",
-    proBadgeInactive: "Pro nonaktif",
-    proBadgeActive: "Pro",
+    ctaUnlock: "Upgrade",
+    planBasic: "Basic",
+    planPro: "Pro",
     upgradeTitle: "Buka semua fitur dengan Pro",
     upgradeDesc: "Diskon 50% terbatas — label pembicara, riwayat & catatan budaya.",
     upgradeCta: "Upgrade ke Pro",
     panelLockTitle: "Riwayat subtitle adalah fitur Pro",
     panelLockDesc: "Upgrade untuk melihat riwayat lengkap per pembicara.",
-    proTestLabel: "Pro (uji)",
+    planTestLabel: "Paket (uji)",
     panelTitle: "Riwayat subtitle",
     panelEmpty: "Subtitle akan segera dimulai",
     latest: "Terbaru",

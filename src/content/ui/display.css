@@ -73,39 +73,8 @@
   background: rgba(0, 0, 0, var(--overlay-opacity, 0.6));
   border-radius: 14px;
   padding: calc(11px * var(--font-scale, 1)) calc(16px * var(--font-scale, 1));
-  pointer-events: auto; /* 핸들 드래그를 받기 위해 */
+  pointer-events: none; /* 영상 클릭을 가리지 않도록 통과 */
   animation: kaptik-rise 150ms ease-out;
-}
-
-/* 상단 리사이즈 핸들 — 위/아래로 드래그해 줄 수 조절 */
-.kaptik-center-handle {
-  position: absolute;
-  top: -7px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 56px;
-  height: 16px;
-  border: none;
-  background: transparent;
-  cursor: ns-resize;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-}
-
-.kaptik-center-handle::before {
-  content: "";
-  width: 44px;
-  height: 4px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.45);
-  transition: background 140ms ease-out, width 140ms ease-out;
-}
-
-.kaptik-center-handle:hover::before {
-  background: rgba(255, 255, 255, 0.9);
-  width: 52px;
 }
 
 .kaptik-center-line {
