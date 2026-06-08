@@ -18,7 +18,9 @@
       "Bash(grep -oE 'assets/[A-Za-z0-9_.-]+\\\\.js' dist/__TRACKED_VAR__)",
       "Bash(node -e \"const m=require\\('./dist/manifest.json'\\); console.log\\(m.web_accessible_resources[0].resources.filter\\(r=>r.endsWith\\('.js'\\)\\).join\\('\\\\n'\\)\\);\")",
       "Bash(xargs -n1 basename)",
-      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")"
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")",
+      "Bash(npx tsc *)",
+      "Bash(echo \"=== exit: $? ===\")"
     ]
   }
 }
