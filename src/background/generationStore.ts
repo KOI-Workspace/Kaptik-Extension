@@ -66,7 +66,10 @@ export async function getLocalStatus(
 
   const jobs = await readJobs();
   const job = jobs[key];
-  if (!job) return { state: "none" };
+  // 백엔드 미연결 개발 단계: mock 자막은 모든 영상에 항상 존재하므로,
+  // 생성 기록이 없어도 바로 볼 수 있도록 available로 간주한다.
+  // (실제 백엔드가 붙으면 fetchSubtitleStatus가 우선 적용되어 none/generating을 정확히 반환)
+  if (!job) return { state: "available" };
 
   const elapsed = Date.now() - job.startedAt;
   if (elapsed >= job.durationMs) {

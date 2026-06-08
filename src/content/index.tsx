@@ -72,7 +72,13 @@ class SubtitleController {
     const videoId = this.adapter.getVideoId(location.href);
 
     // 영상 없음 / 자막 OFF → 숨김
-    if (!videoId || !this.settings.enabled) {
+    if (!videoId) {
+      console.info("[Kaptik] videoId 없음 → 숨김");
+      this.teardown();
+      return;
+    }
+    if (!this.settings.enabled) {
+      console.info("[Kaptik] 자막 OFF (enabled=false) → 숨김");
       this.teardown();
       return;
     }
@@ -80,23 +86,35 @@ class SubtitleController {
     // 자막 상태 확인 — available 아니면 표시하지 않음 (생성은 팝업에서 안내)
     const status = await requestStatus(this.adapter.platform, videoId);
     if (token !== this.token) return;
+    console.info(`[Kaptik] status=${status?.state} (${videoId})`);
     if (status?.state !== "available") {
       this.teardown();
       return;
     }
 
     // 이미 같은 영상으로 표시 중이면 유지
-    if (this.mounted?.videoId === videoId) return;
+    if (this.mounted?.videoId === videoId) {
+      console.info("[Kaptik] 이미 표시 중 → 유지");
+      return;
+    }
 
     // (재)마운트 준비
     this.teardown();
     const video = await waitFor(() => this.adapter.getVideoElement());
-    if (token !== this.token || !video) return;
+    if (token !== this.token) return;
+    if (!video) {
+      console.info("[Kaptik] video 요소 못 찾음");
+      return;
+    }
 
     const container = this.adapter.getOverlayContainer();
-    if (!container) return;
+    if (!container) {
+      console.info("[Kaptik] overlay container 못 찾음");
+      return;
+    }
     // 사이드 컬럼(관련영상 영역)이 있으면 패널을 거기에 도킹, 없으면 오버레이 폴백
     const panelContainer = this.adapter.getPanelContainer();
+    console.info("[Kaptik] panelContainer 있음?", !!panelContainer);
 
     const track = await requestSubtitles(this.adapter.platform, videoId);
     if (token !== this.token) return;
