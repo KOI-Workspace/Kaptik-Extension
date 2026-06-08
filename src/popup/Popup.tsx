@@ -3,6 +3,7 @@ import {
   DEFAULT_SETTINGS,
   getSettings,
   updateSettings,
+  PRICING_URL,
   type KaptikSettings,
 } from "@/shared/settings";
 import { getMessages, UI_LANGUAGE_OPTIONS, type Messages } from "@/shared/i18n";
@@ -108,6 +109,11 @@ export function Popup() {
     startPolling(target);
   };
 
+  /** 결제/업그레이드 페이지를 새 탭으로 연다. */
+  const openPricing = () => {
+    void chrome.tabs.create({ url: PRICING_URL });
+  };
+
   // ── 렌더 ──
   return (
     <div className="popup">
@@ -118,13 +124,22 @@ export function Popup() {
           </div>
           <div className="popup-subtitle">{t.appTagline}</div>
         </div>
-        {target && status?.state === "available" && (
-          <Switch
-            checked={settings.enabled}
-            onChange={(v) => patch({ enabled: v })}
-            ariaLabel={t.ariaToggleSubtitles}
-          />
-        )}
+        <div className="popup-header-right">
+          <button
+            type="button"
+            className={"pro-badge" + (settings.isPro ? " is-pro" : "")}
+            onClick={openPricing}
+          >
+            {settings.isPro ? `★ ${t.proBadgeActive}` : `🔒 ${t.proBadgeInactive}`}
+          </button>
+          {target && status?.state === "available" && (
+            <Switch
+              checked={settings.enabled}
+              onChange={(v) => patch({ enabled: v })}
+              ariaLabel={t.ariaToggleSubtitles}
+            />
+          )}
+        </div>
       </header>
 
       {target === undefined && <CheckingView t={t} />}
@@ -132,7 +147,12 @@ export function Popup() {
       {target && status === null && <CheckingView t={t} />}
 
       {target && status?.state === "available" && (
-        <AvailableView settings={settings} patch={patch} t={t} />
+        <AvailableView
+          settings={settings}
+          patch={patch}
+          t={t}
+          onUpgrade={openPricing}
+        />
       )}
       {target && status?.state === "none" && (
         <NoneView onGenerate={onGenerate} t={t} />

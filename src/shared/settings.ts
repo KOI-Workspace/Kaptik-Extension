@@ -18,6 +18,8 @@ export interface KaptikSettings {
   showPanel: boolean;
   /** 자막 생성 완료 시 시스템 알림 받기 */
   notifyOnReady: boolean;
+  /** Pro(결제) 활성 여부 — 백엔드 연동 전 테스트용 플래그 */
+  isPro: boolean;
 }
 
 /** chrome.storage.sync 에 저장되는 키 */
@@ -33,7 +35,11 @@ export const DEFAULT_SETTINGS: KaptikSettings = {
   overlayOpacity: 0.6,
   showPanel: true,
   notifyOnReady: true,
+  isPro: false,
 };
+
+/** 결제/업그레이드 페이지 URL (백엔드 연동 전 placeholder) */
+export const PRICING_URL = "https://kaptik.app/pricing";
 
 /**
  * 저장된 설정을 읽어 기본값과 병합해 반환한다.

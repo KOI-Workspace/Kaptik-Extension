@@ -48,6 +48,15 @@ export interface Messages {
   // aria
   ariaToggleSubtitles: string;
   ariaNotifyReady: string;
+  // 결제/Pro
+  proBadgeInactive: string;
+  proBadgeActive: string;
+  upgradeTitle: string;
+  upgradeDesc: string;
+  upgradeCta: string;
+  panelLockTitle: string;
+  panelLockDesc: string;
+  proTestLabel: string;
   // 패널
   panelTitle: string;
   panelEmpty: string;
@@ -86,6 +95,14 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     bgOpacityLabel: "Background opacity",
     ariaToggleSubtitles: "Toggle subtitles",
     ariaNotifyReady: "Notify when ready",
+    proBadgeInactive: "Pro inactive",
+    proBadgeActive: "Pro",
+    upgradeTitle: "Unlock everything with Pro",
+    upgradeDesc: "Limited-time 50% off — speaker labels, history & cultural notes.",
+    upgradeCta: "Upgrade to Pro",
+    panelLockTitle: "Subtitle history is a Pro feature",
+    panelLockDesc: "Upgrade to follow the full speaker-by-speaker history.",
+    proTestLabel: "Pro (dev test)",
     panelTitle: "Subtitle history",
     panelEmpty: "Subtitles will start soon",
     latest: "Latest",
@@ -121,6 +138,14 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     bgOpacityLabel: "背景の透明度",
     ariaToggleSubtitles: "字幕のオン/オフ",
     ariaNotifyReady: "完了時に通知",
+    proBadgeInactive: "Pro 未契約",
+    proBadgeActive: "Pro",
+    upgradeTitle: "Proですべての機能を解放",
+    upgradeDesc: "期間限定50%オフ — 話者ラベル・履歴・文化メモ。",
+    upgradeCta: "Proにアップグレード",
+    panelLockTitle: "字幕履歴はPro機能です",
+    panelLockDesc: "アップグレードで話者ごとの全履歴を表示できます。",
+    proTestLabel: "Pro（テスト）",
     panelTitle: "字幕履歴",
     panelEmpty: "まもなく字幕が始まります",
     latest: "最新",
@@ -154,6 +179,14 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     bgOpacityLabel: "背景透明度",
     ariaToggleSubtitles: "开关字幕",
     ariaNotifyReady: "完成时通知",
+    proBadgeInactive: "Pro 未激活",
+    proBadgeActive: "Pro",
+    upgradeTitle: "升级 Pro 解锁全部功能",
+    upgradeDesc: "限时 5 折 — 角色标签、历史记录和文化注释。",
+    upgradeCta: "升级到 Pro",
+    panelLockTitle: "字幕历史是 Pro 功能",
+    panelLockDesc: "升级后可查看完整的分角色历史记录。",
+    proTestLabel: "Pro（测试）",
     panelTitle: "字幕历史",
     panelEmpty: "字幕即将开始",
     latest: "最新",
@@ -189,6 +222,14 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     bgOpacityLabel: "Transparansi latar",
     ariaToggleSubtitles: "Aktifkan/nonaktifkan subtitle",
     ariaNotifyReady: "Beri tahu saat siap",
+    proBadgeInactive: "Pro nonaktif",
+    proBadgeActive: "Pro",
+    upgradeTitle: "Buka semua fitur dengan Pro",
+    upgradeDesc: "Diskon 50% terbatas — label pembicara, riwayat & catatan budaya.",
+    upgradeCta: "Upgrade ke Pro",
+    panelLockTitle: "Riwayat subtitle adalah fitur Pro",
+    panelLockDesc: "Upgrade untuk melihat riwayat lengkap per pembicara.",
+    proTestLabel: "Pro (uji)",
     panelTitle: "Riwayat subtitle",
     panelEmpty: "Subtitle akan segera dimulai",
     latest: "Terbaru",
