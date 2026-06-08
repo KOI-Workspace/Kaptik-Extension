@@ -11,7 +11,8 @@
       "Bash(gh auth *)",
       "Bash(gh --version)",
       "Bash(git add *)",
-      "Bash(git commit -q -m ' *)"
+      "Bash(git commit -q -m ' *)",
+      "Bash(node -e \"const m=require\\('./dist/manifest.json'\\); console.log\\('content_scripts:', JSON.stringify\\(m.content_scripts,null,2\\)\\); console.log\\('web_accessible_resources:', JSON.stringify\\(m.web_accessible_resources,null,2\\)\\);\")"
     ]
   }
 }

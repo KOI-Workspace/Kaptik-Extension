@@ -44,4 +44,13 @@ export const youtubeAdapter: SiteAdapter = {
       (document.querySelector(".html5-video-player") as HTMLElement | null)
     );
   },
+
+  getPanelContainer() {
+    // watch 페이지 우측 컬럼(관련영상 영역). 패널을 이 안 맨 위에 끼워
+    // 관련영상을 아래로 밀어낸다. 극장/전체화면 모드에선 숨겨질 수 있다.
+    return (
+      (document.querySelector("#secondary-inner") as HTMLElement | null) ??
+      (document.querySelector("#secondary") as HTMLElement | null)
+    );
+  },
 };

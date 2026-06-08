@@ -17,8 +17,13 @@ import { waitFor, watchUrlChanges } from "./utils";
  * 영상 위에 자막 UI(가운데 오버레이 + 우측 패널)를 마운트한다.
  */
 async function bootstrap() {
+  // 주입 여부 확인용 — 어댑터 매칭 전에 무조건 찍는다
+  console.info("[Kaptik] content script 로드됨:", location.href);
   const adapter = resolveAdapter();
-  if (!adapter) return;
+  if (!adapter) {
+    console.info("[Kaptik] 지원하지 않는 사이트:", location.hostname);
+    return;
+  }
   console.info(`[Kaptik] ${adapter.platform} 페이지 감지`);
   const controller = new SubtitleController(adapter);
   await controller.start();
@@ -90,6 +95,8 @@ class SubtitleController {
 
     const container = this.adapter.getOverlayContainer();
     if (!container) return;
+    // 사이드 컬럼(관련영상 영역)이 있으면 패널을 거기에 도킹, 없으면 오버레이 폴백
+    const panelContainer = this.adapter.getPanelContainer();
 
     const track = await requestSubtitles(this.adapter.platform, videoId);
     if (token !== this.token) return;
@@ -98,7 +105,7 @@ class SubtitleController {
       return;
     }
 
-    const handle = mountDisplay(container, video, track);
+    const handle = mountDisplay(container, panelContainer, video, track);
     this.mounted = { videoId, handle };
     console.info(
       `[Kaptik] 자막 표시 (${this.adapter.platform}/${videoId}, ${track.cues.length}줄)`,

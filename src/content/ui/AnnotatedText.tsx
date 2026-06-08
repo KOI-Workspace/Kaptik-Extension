@@ -80,7 +80,10 @@ export function AnnotatedText({
             className={
               "kaptik-term" + (openIndex === seg.annotationIndex ? " is-open" : "")
             }
-            onClick={() => onToggle(seg.annotationIndex!)}
+            onClick={(e) => {
+              e.stopPropagation(); // 텍스트 행의 seek로 전파 방지
+              onToggle(seg.annotationIndex!);
+            }}
           >
             {seg.text}
           </button>
@@ -93,7 +96,10 @@ export function AnnotatedText({
           key={`badge-${i}`}
           type="button"
           className={"kaptik-term-badge" + (openIndex === i ? " is-open" : "")}
-          onClick={() => onToggle(i)}
+          onClick={(e) => {
+            e.stopPropagation(); // 텍스트 행의 seek로 전파 방지
+            onToggle(i);
+          }}
           aria-label={`맥락 보기: ${annotations[i].title}`}
         >
           ⓘ

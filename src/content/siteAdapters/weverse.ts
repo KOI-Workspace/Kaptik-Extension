@@ -44,4 +44,10 @@ export const weverseAdapter: SiteAdapter = {
     );
     return labeled ?? (video.parentElement as HTMLElement | null);
   },
+
+  getPanelContainer() {
+    // Weverse는 YouTube 같은 고정 사이드 컬럼이 없어 패널을 도킹하지 않는다.
+    // null을 반환하면 패널은 영상 위 오버레이로 폴백된다.
+    return null;
+  },
 };

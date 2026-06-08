@@ -5,6 +5,11 @@
 
 :host {
   all: initial;
+  /* 도킹 패널은 .kaptik-root 래퍼 없이 렌더되므로 토큰을 :host에도 정의 */
+  --brand: #8353eb;
+  --panel-width: clamp(260px, 34%, 380px);
+  font-family: "Inter", "Pretendard", -apple-system, BlinkMacSystemFont, system-ui,
+    sans-serif;
 }
 
 * {
@@ -14,8 +19,6 @@
 }
 
 .kaptik-root {
-  --brand: #8353eb;
-  --panel-width: clamp(260px, 34%, 380px);
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -89,13 +92,13 @@
 
 .kaptik-center-name {
   font-size: calc(12px * var(--font-scale, 1));
-  font-weight: 850;
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 
 .kaptik-center-text {
   font-size: calc(19px * var(--font-scale, 1));
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.34;
   letter-spacing: -0.015em;
   color: #fff;
@@ -103,20 +106,37 @@
   word-break: keep-all;
 }
 
-/* ── 우측 히스토리 패널 ── */
+/* ── 우측 히스토리 패널 (공통) ── */
 .kaptik-panel {
+  display: flex;
+  flex-direction: column;
+  color: #fff;
+  background: rgba(8, 8, 11, 0.92);
+  pointer-events: auto;
+}
+
+/* 도킹 모드: YouTube 사이드 컬럼에 끼워진 일반 블록 (관련영상 위) */
+.kaptik-panel--docked {
+  position: relative; /* Latest 버튼 기준 */
+  width: 100%;
+  height: clamp(420px, calc(100vh - 148px), 860px);
+  margin-bottom: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.32);
+}
+
+/* 오버레이 모드: 사이드 컬럼이 없는 사이트에서 영상 위에 떠 있는 형태 */
+.kaptik-panel--overlay {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
   width: var(--panel-width);
-  display: flex;
-  flex-direction: column;
-  background: rgba(8, 8, 11, 0.82);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
-  pointer-events: auto;
 }
 
 .kaptik-panel-head {
@@ -134,7 +154,7 @@
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 
@@ -161,7 +181,7 @@
   color: #fff;
   font-family: inherit;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
   padding: 0 6px;
   cursor: pointer;
   outline: none;
@@ -255,7 +275,7 @@
 
 .kaptik-row-name {
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 
@@ -264,7 +284,7 @@
   background: transparent;
   color: #6f6f74;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   padding: 0;
@@ -277,10 +297,22 @@
 
 .kaptik-row-text {
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.5;
   color: #e9e9ee;
   word-break: break-word;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 140ms ease-out;
+}
+
+.kaptik-row-text:hover {
+  color: #fff;
+}
+
+.kaptik-row-text:focus-visible {
+  outline: 2px solid rgba(131, 83, 235, 0.7);
+  outline-offset: 2px;
 }
 
 /* ── 문화 맥락: 밑줄 구절 / 배지 ── */
@@ -313,14 +345,31 @@
   vertical-align: middle;
 }
 
-/* ── 주석 카드 ── */
-.kaptik-annotation {
+/* ── 주석 카드 (부드러운 펼침/접힘) ── */
+/* grid-template-rows 0fr↔1fr 전환으로 높이를 애니메이션한다.
+   카드를 항상 렌더하므로 펼칠 때뿐 아니라 접힐 때도 부드럽게 동작한다. */
+.kaptik-annotation-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin-top: 0;
+  opacity: 0;
+  transition: grid-template-rows 260ms cubic-bezier(0.4, 0, 0.2, 1),
+    margin-top 260ms cubic-bezier(0.4, 0, 0.2, 1), opacity 200ms ease-out;
+}
+
+.kaptik-annotation-wrap.is-open {
+  grid-template-rows: 1fr;
   margin-top: 10px;
+  opacity: 1;
+}
+
+.kaptik-annotation {
+  overflow: hidden;
+  min-height: 0; /* grid item이 0까지 접히도록 */
   background: rgba(131, 83, 235, 0.13);
   border: 1px solid rgba(131, 83, 235, 0.4);
   border-radius: 14px;
   padding: 12px 13px;
-  animation: kaptik-rise 150ms ease-out;
 }
 
 .kaptik-annotation-head {
@@ -332,7 +381,7 @@
 
 .kaptik-annotation-title {
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
   color: #c9b6ff;
   letter-spacing: -0.01em;
 }
@@ -355,7 +404,7 @@
 
 .kaptik-annotation-desc {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.55;
   color: #d8d2ea;
   word-break: keep-all;

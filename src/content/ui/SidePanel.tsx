@@ -3,6 +3,7 @@ import { LANGUAGE_LABELS } from "@/types/subtitle";
 import type { LanguageCode, SubtitleTrack } from "@/types/subtitle";
 import type { KaptikSettings } from "@/shared/settings";
 import { updateSettings } from "@/shared/settings";
+import { getMessages, UI_LANGUAGE_OPTIONS } from "@/shared/i18n";
 import { resolveMember } from "@/shared/members";
 import { Avatar } from "./Avatar";
 import { AnnotatedText } from "./AnnotatedText";
@@ -12,6 +13,8 @@ interface SidePanelProps {
   track: SubtitleTrack;
   activeIndex: number;
   settings: KaptikSettings;
+  /** docked: 사이드 컬럼에 끼워진 일반 블록 / overlay: 영상 위에 떠 있는 형태 */
+  variant: "docked" | "overlay";
 }
 
 /** 현재 열린 주석 위치 */
@@ -45,10 +48,14 @@ export function SidePanel({
   track,
   activeIndex,
   settings,
+  variant,
 }: SidePanelProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [open, setOpen] = useState<OpenAnnotation | null>(null);
+
+  // 선택 언어에 맞춘 UI 텍스트
+  const t = getMessages(settings.language);
 
   // 새 발화가 추가될 때, 사용자가 맨 아래를 보고 있으면 자동 스크롤
   useEffect(() => {
@@ -85,24 +92,25 @@ export function SidePanel({
   // 지나간 발화만 히스토리로 노출
   const history = activeIndex >= 0 ? track.cues.slice(0, activeIndex + 1) : [];
 
-  // 트랙이 제공하는 언어만 선택지로 노출 (없으면 전체)
+  // 트랙이 제공하는 언어 중 UI 지원 언어(한국어 제외)만 선택지로 노출
+  const available = track.availableLanguages.filter((c) =>
+    (UI_LANGUAGE_OPTIONS as string[]).includes(c),
+  );
   const languageOptions: LanguageCode[] =
-    track.availableLanguages.length > 0
-      ? track.availableLanguages
-      : (Object.keys(LANGUAGE_LABELS) as LanguageCode[]);
+    available.length > 0 ? available : UI_LANGUAGE_OPTIONS;
 
   return (
-    <aside className="kaptik-panel">
+    <aside className={`kaptik-panel kaptik-panel--${variant}`}>
       <header className="kaptik-panel-head">
         <div className="kaptik-panel-title">
           <span className="kaptik-panel-dot" />
-          자막 히스토리
+          {t.panelTitle}
         </div>
         <div className="kaptik-panel-actions">
           <select
             className="kaptik-lang-select"
             value={settings.language}
-            aria-label="자막 언어 변경"
+            aria-label={t.ariaChangeLang}
             onChange={(e) =>
               void updateSettings({ language: e.target.value as LanguageCode })
             }
@@ -116,7 +124,7 @@ export function SidePanel({
           <button
             type="button"
             className="kaptik-panel-close"
-            aria-label="패널 닫기"
+            aria-label={t.ariaClosePanel}
             onClick={() => void updateSettings({ showPanel: false })}
           >
             ✕
@@ -126,7 +134,7 @@ export function SidePanel({
 
       <div className="kaptik-panel-body" ref={listRef} onScroll={handleScroll}>
         {history.length === 0 ? (
-          <div className="kaptik-panel-empty">곧 자막이 시작돼요</div>
+          <div className="kaptik-panel-empty">{t.panelEmpty}</div>
         ) : (
           history.map((cue, cueIndex) => {
             const member = resolveMember(track, cue);
@@ -135,8 +143,6 @@ export function SidePanel({
             const isActive = cueIndex === activeIndex;
             const openAnnIndex =
               open && open.cueIndex === cueIndex ? open.annIndex : null;
-            const openAnn =
-              openAnnIndex != null ? cue.annotations?.[openAnnIndex] : null;
 
             return (
               <div
@@ -158,12 +164,24 @@ export function SidePanel({
                       type="button"
                       className="kaptik-row-time"
                       onClick={() => seekTo(cue.start)}
-                      aria-label={`${formatTime(cue.start)}로 이동`}
+                      aria-label={t.seekTo(formatTime(cue.start))}
                     >
                       {formatTime(cue.start)}
                     </button>
                   </div>
-                  <div className="kaptik-row-text">
+                  <div
+                    className="kaptik-row-text"
+                    role="button"
+                    tabIndex={0}
+                    title={t.seekTo(formatTime(cue.start))}
+                    onClick={() => seekTo(cue.start)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        seekTo(cue.start);
+                      }
+                    }}
+                  >
                     <AnnotatedText
                       text={text}
                       annotations={cue.annotations}
@@ -172,26 +190,37 @@ export function SidePanel({
                     />
                   </div>
 
-                  {openAnn && (
-                    <div className="kaptik-annotation">
-                      <div className="kaptik-annotation-head">
-                        <span className="kaptik-annotation-title">
-                          {openAnn.title}
-                        </span>
-                        <button
-                          type="button"
-                          className="kaptik-annotation-close"
-                          aria-label="주석 닫기"
-                          onClick={() => setOpen(null)}
-                        >
-                          ✕
-                        </button>
+                  {/* 주석 카드는 모두 렌더하고 높이로 펼침/접힘을 부드럽게 처리 */}
+                  {cue.annotations?.map((ann, annIndex) => {
+                    const isOpen = openAnnIndex === annIndex;
+                    return (
+                      <div
+                        key={annIndex}
+                        className={
+                          "kaptik-annotation-wrap" + (isOpen ? " is-open" : "")
+                        }
+                      >
+                        <div className="kaptik-annotation">
+                          <div className="kaptik-annotation-head">
+                            <span className="kaptik-annotation-title">
+                              {ann.title}
+                            </span>
+                            <button
+                              type="button"
+                              className="kaptik-annotation-close"
+                              aria-label={t.ariaCloseAnnotation}
+                              onClick={() => setOpen(null)}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          <p className="kaptik-annotation-desc">
+                            {ann.description}
+                          </p>
+                        </div>
                       </div>
-                      <p className="kaptik-annotation-desc">
-                        {openAnn.description}
-                      </p>
-                    </div>
-                  )}
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -205,7 +234,7 @@ export function SidePanel({
           className="kaptik-latest"
           onClick={scrollToLatest}
         >
-          ↑ Latest
+          ↑ {t.latest}
         </button>
       )}
     </aside>
