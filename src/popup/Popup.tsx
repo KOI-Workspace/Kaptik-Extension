@@ -253,14 +253,30 @@ function FailedView({ onRetry, t }: { onRetry: () => void; t: Messages }) {
   );
 }
 
+/** 미결제(무료) 사용자에게 보여줄 업그레이드 배너 */
+function UpgradeBanner({ t, onUpgrade }: { t: Messages; onUpgrade: () => void }) {
+  return (
+    <div className="upgrade-banner">
+      <div className="upgrade-banner-glow" aria-hidden />
+      <div className="upgrade-title">{t.upgradeTitle}</div>
+      <div className="upgrade-desc">{t.upgradeDesc}</div>
+      <button type="button" className="upgrade-cta" onClick={onUpgrade}>
+        {t.upgradeCta} →
+      </button>
+    </div>
+  );
+}
+
 function AvailableView({
   settings,
   patch,
   t,
+  onUpgrade,
 }: {
   settings: KaptikSettings;
   patch: (next: Partial<KaptikSettings>) => void;
   t: Messages;
+  onUpgrade: () => void;
 }) {
   // 자막이 꺼져 있으면 '자막 보기'로 켜도록 유도
   if (!settings.enabled) {
@@ -281,6 +297,8 @@ function AvailableView({
 
   return (
     <>
+      {!settings.isPro && <UpgradeBanner t={t} onUpgrade={onUpgrade} />}
+
       <div className="preview" aria-hidden>
         {settings.showSpeaker && <div className="preview-speaker">RM</div>}
         <div
