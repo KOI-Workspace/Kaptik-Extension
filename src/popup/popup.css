@@ -94,50 +94,52 @@ body {
   color: #fff;
 }
 
-/* ── 결제 후 계정 배지 (등급 + 프로필) ── */
-.account-badge {
+/* ── 결제 후 계정 영역 (요금제 칩 + 프로필 아바타, 서로 분리) ── */
+.account {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 26px;
-  padding: 0 8px 0 3px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-elevated);
+  gap: 7px;
   white-space: nowrap;
 }
 
-.account-avatar {
+/* 요금제 칩 — 등급을 나타내는 작은 배지 */
+.plan-chip {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #8353eb 0%, #a87bff 100%);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.account-plan {
+  height: 22px;
+  padding: 0 9px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.01em;
 }
 
 /* Pro는 퍼플, Basic은 중립색으로 등급을 구분 */
-.account-badge.plan-pro {
-  border-color: rgba(131, 83, 235, 0.5);
+.plan-chip.plan-pro {
   background: rgba(131, 83, 235, 0.16);
-}
-
-.account-badge.plan-pro .account-plan {
+  border-color: rgba(131, 83, 235, 0.5);
   color: #c9b6ff;
 }
 
-.account-badge.plan-basic .account-plan {
+.plan-chip.plan-basic {
+  background: var(--color-surface-elevated);
   color: var(--color-text-secondary);
+}
+
+/* 프로필 아바타 — 원형 단독 (이름 이니셜) */
+.account-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8353eb 0%, #a87bff 100%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 /* ── 업그레이드 배너 ── */
@@ -338,31 +340,6 @@ input[type="range"]::-webkit-slider-thumb {
   background: var(--color-brand);
   cursor: pointer;
   box-shadow: 0 0 0 4px rgba(131, 83, 235, 0.18);
-}
-
-/* ── 미리보기 ── */
-.preview {
-  background: linear-gradient(180deg, #141414 0%, #050505 100%);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  padding: 16px 14px;
-  text-align: center;
-  margin-bottom: 12px;
-}
-
-.preview-speaker {
-  color: var(--color-brand);
-  font-size: 11px;
-  font-weight: 850;
-  margin-bottom: 3px;
-}
-
-.preview-text {
-  color: #ffffff;
-  font-size: 15px;
-  font-weight: 750;
-  line-height: 1.35;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
 /* ── 푸터 ── */

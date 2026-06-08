@@ -128,16 +128,13 @@ export function Popup() {
         </div>
         <div className="popup-header-right">
           {isPaid(settings.plan) ? (
-            // 결제 후: 현재 등급 + 프로필 (이름 이니셜 아바타)
-            <div
-              className={"account-badge plan-" + settings.plan}
-              title={settings.profileName}
-            >
-              <span className="account-avatar">
-                {settings.profileName.trim().charAt(0).toUpperCase()}
-              </span>
-              <span className="account-plan">
+            // 결제 후: 요금제 칩 + 프로필 아바타 (서로 분리된 요소)
+            <div className="account">
+              <span className={"plan-chip plan-" + settings.plan}>
                 {settings.plan === "pro" ? t.planPro : t.planBasic}
+              </span>
+              <span className="account-avatar" title={settings.profileName}>
+                {settings.profileName.trim().charAt(0).toUpperCase()}
               </span>
             </div>
           ) : (
@@ -312,16 +309,6 @@ function AvailableView({
   return (
     <>
       {!isPaid(settings.plan) && <UpgradeBanner t={t} onUpgrade={onUpgrade} />}
-
-      <div className="preview" aria-hidden>
-        {settings.showSpeaker && <div className="preview-speaker">RM</div>}
-        <div
-          className="preview-text"
-          style={{ fontSize: `${15 * settings.fontScale}px` }}
-        >
-          {t.previewText}
-        </div>
-      </div>
 
       <div className="card">
         <div className="row">
