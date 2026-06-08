@@ -96,7 +96,7 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     viewSubtitlesBtn: "View subtitles",
     langLabel: "Subtitle language",
     speakerLabel: "Speaker Identification",
-    panelLabel: "History panel (right)",
+    panelLabel: "Transcript",
     lineCountLabel: "Subtitle lines",
     lineCountOne: "1 line",
     lineCountTwo: "2 lines",
