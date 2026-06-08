@@ -65,6 +65,110 @@ body {
   color: var(--color-text-tertiary);
 }
 
+.popup-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ── Pro 상태 배지 ── */
+.pro-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-elevated);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 140ms ease-out, color 140ms ease-out;
+}
+
+.pro-badge:hover {
+  border-color: rgba(131, 83, 235, 0.6);
+  color: #fff;
+}
+
+.pro-badge.is-pro {
+  background: rgba(131, 83, 235, 0.16);
+  border-color: rgba(131, 83, 235, 0.5);
+  color: #c9b6ff;
+  cursor: default;
+}
+
+/* ── 업그레이드 배너 ── */
+.upgrade-banner {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  border: 1px solid rgba(131, 83, 235, 0.45);
+  background: linear-gradient(135deg, #2a1c4d 0%, #1a1330 100%);
+  padding: 14px 14px 16px;
+  margin-bottom: 12px;
+}
+
+.upgrade-banner-glow {
+  position: absolute;
+  top: -40px;
+  right: -30px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(131, 83, 235, 0.55) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.upgrade-title {
+  position: relative;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.upgrade-desc {
+  position: relative;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: #c8bce6;
+  margin-bottom: 12px;
+}
+
+.upgrade-cta {
+  position: relative;
+  width: 100%;
+  height: 40px;
+  border: none;
+  border-radius: 11px;
+  background: linear-gradient(90deg, #8353eb 0%, #a87bff 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: filter 140ms ease-out, transform 140ms ease-out;
+}
+
+.upgrade-cta:hover {
+  filter: brightness(1.08);
+}
+
+.upgrade-cta:active {
+  transform: scale(0.98);
+}
+
+/* 개발용 라벨 표시 */
+.row-dev {
+  color: var(--color-text-tertiary) !important;
+  font-weight: 500 !important;
+}
+
 /* ── 토글 스위치 ── */
 .switch {
   position: relative;

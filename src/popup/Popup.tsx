@@ -370,6 +370,16 @@ function AvailableView({
             onChange={(e) => patch({ overlayOpacity: Number(e.target.value) })}
           />
         </div>
+
+        {/* 개발용: Pro 상태를 직접 토글해 결제/미결제 화면을 확인 */}
+        <div className="row">
+          <span className="row-label row-dev">{t.proTestLabel}</span>
+          <Switch
+            checked={settings.isPro}
+            onChange={(v) => patch({ isPro: v })}
+            ariaLabel={t.proTestLabel}
+          />
+        </div>
       </div>
     </>
   );
