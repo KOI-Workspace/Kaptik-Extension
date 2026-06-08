@@ -24,6 +24,26 @@ export function findVideoBox(video: HTMLVideoElement): HTMLElement | null {
 }
 
 /**
+ * 고른 박스에서 '같은 컬럼'을 유지하는 가장 바깥 조상(컬럼 래퍼)까지 끌어올린다.
+ * 컬럼 안 개별 박스(예: '댓글 작성')에 패널이 끼어 들어가는 것을 막고,
+ * 컬럼 전체 맨 위에 들어가 모든 박스를 아래로 밀어내도록 한다.
+ */
+function climbToColumnRoot(el: HTMLElement, video: HTMLVideoElement): HTMLElement {
+  let col = el;
+  while (col.parentElement && col.parentElement !== document.body) {
+    const parent = col.parentElement;
+    if (parent.contains(video)) break; // 영상까지 품으면 너무 넓음 → 멈춤
+    const pr = parent.getBoundingClientRect();
+    const cr = col.getBoundingClientRect();
+    // 부모 폭이 갑자기 커지지 않으면(= 여전히 같은 세로 컬럼) 계속 올라간다.
+    if (cr.width > 0 && pr.width <= cr.width * 1.25) {
+      col = parent;
+    } else break;
+  }
+  return col;
+}
+
+/**
  * 패널을 도킹할 컬럼을 찾는다 (없으면 null → 오버레이 폴백).
  * - 넓은 화면: 영상 오른쪽의 세로 컬럼(댓글/채팅)
  * - 좁은 화면: 영상 바로 아래의 컬럼
@@ -52,7 +72,7 @@ export function findDockColumn(video: HTMLVideoElement): HTMLElement | null {
       (a, b) =>
         b.getBoundingClientRect().height - a.getBoundingClientRect().height,
     );
-    return rightCol[0];
+    return climbToColumnRoot(rightCol[0], video);
   }
 
   // 2순위(좁은 화면): 영상 바로 아래의 컬럼
@@ -70,7 +90,7 @@ export function findDockColumn(video: HTMLVideoElement): HTMLElement | null {
     belowCol.sort(
       (a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top,
     );
-    return belowCol[0];
+    return climbToColumnRoot(belowCol[0], video);
   }
 
   return null;
