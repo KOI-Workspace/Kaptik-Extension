@@ -1,7 +1,7 @@
 import type { SiteAdapter } from "./siteAdapters";
 import { resolveAdapter } from "./siteAdapters";
 import type { BroadcastMessage } from "@/shared/messaging";
-import { requestStatus, requestSubtitles } from "@/shared/messaging";
+import { requestSubtitles } from "@/shared/messaging";
 import {
   DEFAULT_SETTINGS,
   getSettings,
@@ -83,18 +83,12 @@ class SubtitleController {
       return;
     }
 
-    // 자막 상태 확인 — available 아니면 표시하지 않음 (생성은 팝업에서 안내)
-    const status = await requestStatus(this.adapter.platform, videoId);
-    if (token !== this.token) return;
-    console.info(`[Kaptik] status=${status?.state} (${videoId})`);
-    if (status?.state !== "available") {
-      this.teardown();
-      return;
-    }
+    // 개발 단계: mock 자막은 모든 영상에 항상 존재하므로 status 게이팅을 생략하고,
+    // "자막 ON이면 무조건 표시"한다. (백엔드 연동 시 status 기반 게이팅을 복원)
+    // → service worker 재시작 타이밍에 status가 null로 와서 안 뜨던 문제도 함께 해결.
 
     // 이미 같은 영상으로 표시 중이면 유지
     if (this.mounted?.videoId === videoId) {
-      console.info("[Kaptik] 이미 표시 중 → 유지");
       return;
     }
 

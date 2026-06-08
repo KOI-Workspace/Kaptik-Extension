@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { LANGUAGE_LABELS } from "@/types/subtitle";
 import type { LanguageCode, SubtitleTrack } from "@/types/subtitle";
 import type { KaptikSettings } from "@/shared/settings";
-import { updateSettings } from "@/shared/settings";
+import { updateSettings, PRICING_URL } from "@/shared/settings";
 import { getMessages, UI_LANGUAGE_OPTIONS } from "@/shared/i18n";
 import { resolveMember } from "@/shared/members";
 import { Avatar } from "./Avatar";
@@ -133,7 +133,20 @@ export function SidePanel({
       </header>
 
       <div className="kaptik-panel-body" ref={listRef} onScroll={handleScroll}>
-        {history.length === 0 ? (
+        {!settings.isPro ? (
+          <div className="kaptik-lock">
+            <div className="kaptik-lock-icon">🔒</div>
+            <div className="kaptik-lock-title">{t.panelLockTitle}</div>
+            <div className="kaptik-lock-desc">{t.panelLockDesc}</div>
+            <button
+              type="button"
+              className="kaptik-lock-cta"
+              onClick={() => window.open(PRICING_URL, "_blank", "noopener")}
+            >
+              {t.upgradeCta} →
+            </button>
+          </div>
+        ) : history.length === 0 ? (
           <div className="kaptik-panel-empty">{t.panelEmpty}</div>
         ) : (
           history.map((cue, cueIndex) => {
@@ -228,7 +241,7 @@ export function SidePanel({
         )}
       </div>
 
-      {!atBottom && (
+      {settings.isPro && !atBottom && (
         <button
           type="button"
           className="kaptik-latest"
