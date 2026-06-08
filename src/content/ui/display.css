@@ -59,8 +59,14 @@
   pointer-events: none;
 }
 
+/* 유튜브 폴백 오버레이(가로영상): 패널이 영상 위를 덮으므로 자막을 왼쪽으로 비킨다 */
 .kaptik-root.has-panel .kaptik-center {
   right: var(--panel-width);
+}
+
+/* 위버스(세로영상): 패널이 우측 여백에 떠 영상과 안 겹치므로 자막은 정가운데 유지 */
+.kaptik-root--weverse.has-panel .kaptik-center {
+  right: 0;
 }
 
 /* 자막을 담는 단일 검은 배경 박스 (투명도 조절 가능) */

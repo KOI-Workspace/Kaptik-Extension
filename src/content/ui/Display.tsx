@@ -30,7 +30,12 @@ export function Display({ video, track, panelMount, panelDocked }: DisplayProps)
   const overlayHasPanel = showPanel && !panelDocked;
 
   return (
-    <div className={"kaptik-root" + (overlayHasPanel ? " has-panel" : "")}>
+    <div
+      className={
+        `kaptik-root kaptik-root--${track.platform}` +
+        (overlayHasPanel ? " has-panel" : "")
+      }
+    >
       <CenterSubtitle
         track={track}
         activeIndex={activeIndex}
