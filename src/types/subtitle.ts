@@ -1,5 +1,5 @@
 /** 지원 플랫폼 */
-export type Platform = "youtube" | "weverse";
+export type Platform = "youtube" | "weverse" | "instagram";
 
 /**
  * 지원 자막 언어 코드 (BCP-47 일부)

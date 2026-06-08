@@ -64,8 +64,9 @@
   right: var(--panel-width);
 }
 
-/* 위버스(세로영상): 패널이 우측 여백에 떠 영상과 안 겹치므로 자막은 정가운데 유지 */
-.kaptik-root--weverse.has-panel .kaptik-center {
+/* 위버스·인스타(세로영상): 오버레이 폴백 시에도 가운데 자막은 영상 정가운데 유지 */
+.kaptik-root--weverse.has-panel .kaptik-center,
+.kaptik-root--instagram.has-panel .kaptik-center {
   right: 0;
 }
 

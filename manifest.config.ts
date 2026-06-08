@@ -34,7 +34,11 @@ export default defineManifest({
   },
   content_scripts: [
     {
-      matches: ["*://*.youtube.com/*", "*://*.weverse.io/*"],
+      matches: [
+        "*://*.youtube.com/*",
+        "*://*.weverse.io/*",
+        "*://*.instagram.com/*",
+      ],
       js: ["src/content/index.tsx"],
       run_at: "document_idle",
       all_frames: false,
@@ -44,6 +48,7 @@ export default defineManifest({
   host_permissions: [
     "*://*.youtube.com/*",
     "*://*.weverse.io/*",
+    "*://*.instagram.com/*",
     // Kaptik 백엔드 (개발 중) — 실제 도메인 확정 시 교체
     "https://api.kaptik.app/*",
   ],

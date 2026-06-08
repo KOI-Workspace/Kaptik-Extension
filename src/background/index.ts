@@ -103,7 +103,11 @@ async function onGenerationComplete(
 async function broadcastReady(platform: Platform, videoId: string): Promise<void> {
   const message: BroadcastMessage = { type: "SUBTITLES_READY", platform, videoId };
   const tabs = await chrome.tabs.query({
-    url: ["*://*.youtube.com/*", "*://*.weverse.io/*"],
+    url: [
+      "*://*.youtube.com/*",
+      "*://*.weverse.io/*",
+      "*://*.instagram.com/*",
+    ],
   });
   for (const tab of tabs) {
     if (tab.id != null) {
