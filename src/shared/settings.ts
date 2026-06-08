@@ -1,5 +1,8 @@
 import type { LanguageCode } from "@/types/subtitle";
 
+/** 결제 등급 — free(미결제) / basic / pro */
+export type PlanTier = "free" | "basic" | "pro";
+
 /** 사용자 자막 설정 */
 export interface KaptikSettings {
   /** 자막 표시 on/off (마스터 토글 — '자막 보기'가 켬) */
@@ -10,16 +13,23 @@ export interface KaptikSettings {
   showSpeaker: boolean;
   /** 자막 글자 크기 배율 (0.8 ~ 1.6) */
   fontScale: number;
-  /** 가운데 하단 오버레이에 한 번에 보일 문장 수 (1 ~ 5, 핸들로 조절) */
-  overlayLineCount: number;
+  /** 가운데 하단 오버레이에 한 번에 보일 줄 수 (1=한 줄, 2=두 줄) */
+  overlayLineCount: 1 | 2;
   /** 가운데 오버레이 배경(검은색) 불투명도 (0 ~ 1) */
   overlayOpacity: number;
   /** 우측 히스토리 패널 표시 여부 */
   showPanel: boolean;
   /** 자막 생성 완료 시 시스템 알림 받기 */
   notifyOnReady: boolean;
-  /** Pro(결제) 활성 여부 — 백엔드 연동 전 테스트용 플래그 */
-  isPro: boolean;
+  /** 현재 결제 등급 — 백엔드 연동 전 테스트용 플래그 */
+  plan: PlanTier;
+  /** 결제 계정 표시 이름 (등급 배지 옆 프로필에 사용, 목업) */
+  profileName: string;
+}
+
+/** 유료 등급(basic/pro) 여부 — 미결제(free)와 결제 후를 구분 */
+export function isPaid(plan: PlanTier): boolean {
+  return plan !== "free";
 }
 
 /** chrome.storage.sync 에 저장되는 키 */
@@ -31,11 +41,12 @@ export const DEFAULT_SETTINGS: KaptikSettings = {
   language: "en",
   showSpeaker: true,
   fontScale: 1,
-  overlayLineCount: 1,
+  overlayLineCount: 2,
   overlayOpacity: 0.6,
   showPanel: true,
   notifyOnReady: true,
-  isPro: false,
+  plan: "free",
+  profileName: "Jiwoo Kim",
 };
 
 /** 결제/업그레이드 페이지 URL (백엔드 연동 전 placeholder) */
