@@ -179,8 +179,6 @@ export function Popup() {
       {target && status?.state === "failed" && (
         <FailedView onRetry={onGenerate} t={t} />
       )}
-
-      <footer className="popup-footer">{t.footer}</footer>
     </div>
   );
 }

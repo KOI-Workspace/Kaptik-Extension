@@ -32,7 +32,11 @@ async function bootstrap() {
 /** 영상 단위로 자막 UI 생명주기를 관리하는 컨트롤러 */
 class SubtitleController {
   private settings: KaptikSettings = DEFAULT_SETTINGS;
-  private mounted: { videoId: string; handle: DisplayHandle } | null = null;
+  private mounted: {
+    videoId: string;
+    panelContainer: HTMLElement | null;
+    handle: DisplayHandle;
+  } | null = null;
   /** 평가 진행 중 플래그 — 긴 await 동안 중복 evaluate가 끼어들어 취소시키는 것을 방지 */
   private evaluating = false;
 
@@ -63,6 +67,13 @@ class SubtitleController {
     // SPA 내부에서 video만 교체되는 경우 대비 주기 점검
     setInterval(() => void this.evaluate(), 1500);
 
+    // 화면 폭 변경(반응형) → 패널 도킹 위치(우측 ↔ 영상 아래) 재평가
+    let resizeTimer: number | undefined;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => void this.evaluate(), 250);
+    });
+
     await this.evaluate();
   }
 
@@ -83,8 +94,16 @@ class SubtitleController {
       // 개발 단계: mock 자막은 모든 영상에 항상 존재하므로 status 게이팅을 생략하고
       // "자막 ON이면 무조건 표시"한다. (백엔드 연동 시 status 기반 게이팅 복원)
 
-      // 이미 같은 영상으로 표시 중이면 유지
-      if (this.mounted?.videoId === videoId) return;
+      // 사이드 컬럼(관련영상 영역) 또는 영상 아래 — 화면 폭에 따라 달라진다(반응형)
+      const panelContainer = this.adapter.getPanelContainer();
+
+      // 같은 영상이고 패널 도킹 위치도 그대로면 유지 (폭이 바뀌면 재마운트)
+      if (
+        this.mounted?.videoId === videoId &&
+        this.mounted.panelContainer === panelContainer
+      ) {
+        return;
+      }
 
       // (재)마운트 준비
       this.teardown();
@@ -103,8 +122,6 @@ class SubtitleController {
         console.info("[Kaptik] overlay container 못 찾음");
         return;
       }
-      // 사이드 컬럼(관련영상 영역)이 있으면 패널을 거기에 도킹, 없으면 오버레이 폴백
-      const panelContainer = this.adapter.getPanelContainer();
 
       const track = await requestSubtitles(this.adapter.platform, videoId);
       if (videoId !== this.adapter.getVideoId(location.href)) return;
@@ -114,7 +131,7 @@ class SubtitleController {
       }
 
       const handle = mountDisplay(container, panelContainer, video, track);
-      this.mounted = { videoId, handle };
+      this.mounted = { videoId, panelContainer, handle };
       console.info(
         `[Kaptik] 자막 표시 (${this.adapter.platform}/${videoId}, ${track.cues.length}줄)`,
       );

@@ -37,12 +37,20 @@ export const weverseAdapter: SiteAdapter = {
 
   getOverlayContainer() {
     const video = this.getVideoElement();
-    if (!video) return null;
-    // 클래스명에 'Player'/'video' 가 포함된 가장 가까운 조상을 우선 사용
-    const labeled = video.closest<HTMLElement>(
-      '[class*="Player" i], [class*="video" i], [data-testid*="player" i]',
-    );
-    return labeled ?? (video.parentElement as HTMLElement | null);
+    if (!video?.parentElement) return null;
+    // 세로 영상이 큰 플레이어(좌우 검은 여백 포함) 안에 있으면, 그 큰 컨테이너에
+    // 자막을 붙이면 영상 박스 밖으로 빠진다. video를 직접 감싸는 부모에서 시작해
+    // video 폭과 비슷한(레터박스 없는) 가장 바깥 조상까지만 올라가, 자막이
+    // 영상 박스 안에 정확히 뜨도록 한다.
+    const vw = video.getBoundingClientRect().width;
+    let node: HTMLElement = video.parentElement;
+    while (node.parentElement && node.parentElement !== document.body) {
+      const pw = node.parentElement.getBoundingClientRect().width;
+      if (vw > 0 && pw <= vw * 1.15) {
+        node = node.parentElement;
+      } else break;
+    }
+    return node;
   },
 
   getPanelContainer() {
@@ -68,11 +76,6 @@ export const weverseAdapter: SiteAdapter = {
       );
     });
 
-    console.info(
-      `[Kaptik] (weverse) iframe ${document.querySelectorAll("iframe").length}개, ` +
-        `우측 컬럼 후보 ${candidates.length}개 (video.right=${Math.round(vRect.right)})`,
-    );
-
     if (candidates.length === 0) return null;
 
     // 가장 키가 큰(컬럼 전체에 가까운) 후보를 사이드 컬럼으로 본다.
@@ -80,13 +83,6 @@ export const weverseAdapter: SiteAdapter = {
       (a, b) =>
         b.getBoundingClientRect().height - a.getBoundingClientRect().height,
     );
-    const column = candidates[0];
-    const r = column.getBoundingClientRect();
-    console.info(
-      `[Kaptik] (weverse) 패널 도킹 컬럼 선택: <${column.tagName.toLowerCase()}> ` +
-        `class="${(typeof column.className === "string" ? column.className : "").slice(0, 40)}" ` +
-        `${Math.round(r.width)}x${Math.round(r.height)}`,
-    );
-    return column;
+    return candidates[0];
   },
 };

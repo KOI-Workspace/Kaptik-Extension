@@ -46,11 +46,25 @@ export const youtubeAdapter: SiteAdapter = {
   },
 
   getPanelContainer() {
-    // watch 페이지 우측 컬럼(관련영상 영역). 패널을 이 안 맨 위에 끼워
-    // 관련영상을 아래로 밀어낸다. 극장/전체화면 모드에선 숨겨질 수 있다.
+    // 넓은 화면(2컬럼)에서는 우측 관련영상 컬럼에 도킹하고,
+    // 좁은 화면(1컬럼)에서는 우측 컬럼이 영상 아래로 밀려 사라지므로
+    // 영상 바로 아래(#below) 영역에 도킹한다.
+    const flexy = document.querySelector("ytd-watch-flexy");
+    const twoColumns = flexy
+      ? flexy.hasAttribute("is-two-columns_")
+      : window.innerWidth >= 1016;
+
+    if (twoColumns) {
+      const side =
+        (document.querySelector("#secondary-inner") as HTMLElement | null) ??
+        (document.querySelector("#secondary") as HTMLElement | null);
+      if (side) return side;
+    }
+
+    // 좁은 화면: 영상 바로 아래(제목/메타데이터 영역 맨 위)에 도킹
     return (
-      (document.querySelector("#secondary-inner") as HTMLElement | null) ??
-      (document.querySelector("#secondary") as HTMLElement | null)
+      (document.querySelector("#below") as HTMLElement | null) ??
+      (document.querySelector("#primary-inner") as HTMLElement | null)
     );
   },
 };

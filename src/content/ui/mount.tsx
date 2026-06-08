@@ -64,17 +64,6 @@ export function mountDisplay(
     "position:absolute;inset:0;pointer-events:none;border:0;margin:0;padding:0;";
   overlayContainer.appendChild(overlay.host);
 
-  // 진단: 가운데 자막 기준 컨테이너가 영상보다 과도하게 크면 자막이 영상 밖에 뜬다
-  {
-    const cr = overlayContainer.getBoundingClientRect();
-    const vr = video.getBoundingClientRect();
-    console.info(
-      `[Kaptik] 자막 기준 컨테이너 <${overlayContainer.tagName.toLowerCase()}> ` +
-        `${Math.round(cr.width)}x${Math.round(cr.height)} @(${Math.round(cr.left)},${Math.round(cr.top)}) | ` +
-        `video ${Math.round(vr.width)}x${Math.round(vr.height)} @(${Math.round(vr.left)},${Math.round(vr.top)})`,
-    );
-  }
-
   // ── 패널 host (도킹 가능 시 사이드 컬럼 맨 위) ──
   const panelDocked = panelContainer != null;
   let panelHost: HTMLDivElement | null = null;
