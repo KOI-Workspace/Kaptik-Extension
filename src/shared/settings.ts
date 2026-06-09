@@ -25,6 +25,8 @@ export interface KaptikSettings {
   plan: PlanTier;
   /** 결제 계정 표시 이름 (등급 배지 옆 프로필에 사용, 목업) */
   profileName: string;
+  /** 스트리밍 백엔드 WebSocket 서버 URL */
+  serverUrl: string;
 }
 
 /** 유료 등급(basic/pro) 여부 — 미결제(free)와 결제 후를 구분 */
@@ -47,6 +49,7 @@ export const DEFAULT_SETTINGS: KaptikSettings = {
   notifyOnReady: true,
   plan: "free",
   profileName: "Jiwoo Kim",
+  serverUrl: "ws://localhost:8000",
 };
 
 /** 결제/업그레이드 페이지 URL (백엔드 연동 전 placeholder) */

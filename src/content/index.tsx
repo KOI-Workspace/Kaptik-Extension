@@ -1,7 +1,6 @@
 import type { SiteAdapter } from "./siteAdapters";
 import { resolveAdapter } from "./siteAdapters";
 import type { BroadcastMessage } from "@/shared/messaging";
-import { requestSubtitles } from "@/shared/messaging";
 import {
   DEFAULT_SETTINGS,
   getSettings,
@@ -10,6 +9,7 @@ import {
 } from "@/shared/settings";
 import { mountDisplay, type DisplayHandle } from "./ui/mount";
 import { waitFor, watchUrlChanges } from "./utils";
+import type { SubtitleTrack } from "@/types/subtitle";
 
 /**
  * content script 진입점.
@@ -36,7 +36,9 @@ class SubtitleController {
     videoId: string;
     panelContainer: HTMLElement | null;
     handle: DisplayHandle;
+    video: HTMLVideoElement;
   } | null = null;
+  private videoCleanup: (() => void) | null = null;
   /** 평가 진행 중 플래그 — 긴 await 동안 중복 evaluate가 끼어들어 취소시키는 것을 방지 */
   private evaluating = false;
 
@@ -54,13 +56,17 @@ class SubtitleController {
     // URL 변경(SPA) → 재평가
     watchUrlChanges(() => void this.evaluate());
 
-    // 생성 완료 브로드캐스트 → 재평가
+    // background 브로드캐스트 처리
     chrome.runtime.onMessage.addListener((message: BroadcastMessage) => {
       if (
         message?.type === "SUBTITLES_READY" &&
         message.platform === this.adapter.platform
       ) {
         void this.evaluate();
+      } else if (message?.type === "CUE_READY") {
+        this.mounted?.handle.updateCues(message.cues);
+      } else if (message?.type === "STREAMING_ERROR") {
+        console.error("[Kaptik] 스트리밍 오류:", message.message);
       }
     });
 
@@ -91,16 +97,15 @@ class SubtitleController {
         return;
       }
 
-      // 개발 단계: mock 자막은 모든 영상에 항상 존재하므로 status 게이팅을 생략하고
-      // "자막 ON이면 무조건 표시"한다. (백엔드 연동 시 status 기반 게이팅 복원)
-
       // 사이드 컬럼(관련영상 영역) 또는 영상 아래 — 화면 폭에 따라 달라진다(반응형)
       const panelContainer = this.adapter.getPanelContainer();
 
-      // 같은 영상이고 패널 도킹 위치도 그대로면 유지 (폭이 바뀌면 재마운트)
+      // 같은 영상, 같은 패널, 같은 video 요소면 유지
+      // YouTube SPA가 video 요소를 교체하면 stale ref → 재마운트
       if (
         this.mounted?.videoId === videoId &&
-        this.mounted.panelContainer === panelContainer
+        this.mounted.panelContainer === panelContainer &&
+        this.mounted.video === this.adapter.getVideoElement()
       ) {
         return;
       }
@@ -123,25 +128,76 @@ class SubtitleController {
         return;
       }
 
-      const track = await requestSubtitles(this.adapter.platform, videoId);
-      if (videoId !== this.adapter.getVideoId(location.href)) return;
-      if (!track || track.cues.length === 0) {
-        console.info(`[Kaptik] 자막 비어 있음 (${this.adapter.platform}/${videoId})`);
-        return;
-      }
+      // 빈 트랙으로 먼저 마운트한 뒤 스트리밍으로 cue를 채운다
+      const emptyTrack: SubtitleTrack = {
+        platform: this.adapter.platform,
+        videoId,
+        cues: [],
+        availableLanguages: ["ko", "en"],
+        members: {},
+      };
+      const handle = mountDisplay(container, panelContainer, video, emptyTrack);
+      this.mounted = { videoId, panelContainer, handle, video };
 
-      const handle = mountDisplay(container, panelContainer, video, track);
-      this.mounted = { videoId, panelContainer, handle };
-      console.info(
-        `[Kaptik] 자막 표시 (${this.adapter.platform}/${videoId}, ${track.cues.length}줄)`,
-      );
+      const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+      const startStreaming = (seekSec: number, keepCues = false) => {
+        chrome.runtime.sendMessage({
+          type: "START_STREAMING",
+          youtubeUrl,
+          seekSec,
+          serverUrl: this.settings.serverUrl,
+          keepCues,
+        }).catch((err: unknown) => console.error("[Kaptik] START_STREAMING 실패:", err));
+        console.info(`[Kaptik] 스트리밍 요청 (${videoId}, seek=${seekSec}s, keepCues=${keepCues})`);
+      };
+
+      startStreaming(Math.floor(video.currentTime));
+
+      let seekTimer: ReturnType<typeof setTimeout> | undefined;
+
+      // 일시정지 → STT 중단
+      const onPaused = () => {
+        chrome.runtime.sendMessage({ type: "STOP_STREAMING" }).catch(() => {});
+        console.info(`[Kaptik] 일시정지 → 스트리밍 중단 (${videoId})`);
+      };
+
+      // 재생 재개 → 현재 위치부터 재스트리밍 (기존 cue 유지)
+      const onPlaying = () => {
+        clearTimeout(seekTimer);
+        startStreaming(Math.floor(video.currentTime), true);
+      };
+
+      // seek 완료 → 재생 중일 때만 500ms 디바운스 후 재스트리밍
+      const onSeeked = () => {
+        if (video.paused) return; // 일시정지 중 탐색은 play 이벤트가 처리
+        clearTimeout(seekTimer);
+        seekTimer = setTimeout(() => startStreaming(Math.floor(video.currentTime), true), 500);
+      };
+
+      video.addEventListener("pause", onPaused);
+      video.addEventListener("playing", onPlaying);
+      video.addEventListener("seeked", onSeeked);
+      this.videoCleanup = () => {
+        clearTimeout(seekTimer);
+        video.removeEventListener("pause", onPaused);
+        video.removeEventListener("playing", onPlaying);
+        video.removeEventListener("seeked", onSeeked);
+      };
+
+      console.info(`[Kaptik] 자막 마운트 완료 (${this.adapter.platform}/${videoId})`);
     } finally {
       this.evaluating = false;
     }
   }
 
-  /** 표시 중인 자막 UI를 제거한다. */
+  /** 표시 중인 자막 UI와 스트리밍 세션을 제거한다. */
   private teardown() {
+    this.videoCleanup?.();
+    this.videoCleanup = null;
+    if (this.mounted) {
+      chrome.runtime.sendMessage({ type: "STOP_STREAMING" }).catch(() => {});
+    }
     this.mounted?.handle.destroy();
     this.mounted = null;
   }
