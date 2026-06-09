@@ -1,6 +1,6 @@
-import { StrictMode } from "react";
+import { StrictMode, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import type { SubtitleTrack } from "@/types/subtitle";
+import type { SubtitleCue, SubtitleTrack } from "@/types/subtitle";
 import { Display } from "./Display";
 // CSS를 문자열로 가져와 Shadow DOM에 주입 (외부 사이트와 격리)
 import displayCss from "./display.css?inline";
@@ -8,9 +8,11 @@ import displayCss from "./display.css?inline";
 const OVERLAY_HOST_ID = "kaptik-overlay-host";
 const PANEL_HOST_ID = "kaptik-panel-host";
 
-/** 마운트 결과 핸들 — 정리(unmount)에 사용 */
+/** 마운트 결과 핸들 */
 export interface DisplayHandle {
   destroy(): void;
+  /** 스트리밍으로 누적된 자막 큐 목록을 업데이트한다. */
+  updateCues(cues: SubtitleCue[]): void;
 }
 
 /** 격리된 Shadow DOM host를 만들고, 그 안에 렌더용 마운트 노드를 반환한다. */
@@ -78,17 +80,28 @@ export function mountDisplay(
     panelMount = panel.mount;
   }
 
+  // useState setter는 렌더 간 stable이므로 클로저 변수에 할당해도 안전하다.
+  let _setCues: ((cues: SubtitleCue[]) => void) | null = null;
+
+  function ConnectedDisplay() {
+    const [cues, setCues] = useState<SubtitleCue[]>(track.cues);
+    _setCues = setCues;
+    return (
+      <Display
+        video={video}
+        track={{ ...track, cues }}
+        panelMount={panelMount}
+        panelDocked={panelDocked}
+      />
+    );
+  }
+
   // root는 실제 DOM에 연결된 오버레이 노드에 생성한다.
   // (가운데 자막은 여기에 직접 렌더, 패널만 사이드 컬럼으로 portal)
   let root: Root | null = createRoot(overlay.mount);
   root.render(
     <StrictMode>
-      <Display
-        video={video}
-        track={track}
-        panelMount={panelMount}
-        panelDocked={panelDocked}
-      />
+      <ConnectedDisplay />
     </StrictMode>,
   );
 
@@ -96,8 +109,12 @@ export function mountDisplay(
     destroy() {
       root?.unmount();
       root = null;
+      _setCues = null;
       overlay.host.remove();
       panelHost?.remove();
+    },
+    updateCues(cues) {
+      _setCues?.(cues);
     },
   };
 }

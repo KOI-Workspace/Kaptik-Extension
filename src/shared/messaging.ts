@@ -1,24 +1,26 @@
-import type { Platform, SubtitleStatus, SubtitleTrack } from "@/types/subtitle";
+import type { Platform, SubtitleCue, SubtitleStatus, SubtitleTrack } from "@/types/subtitle";
 
 /** content/popup → background 요청 메시지 */
 export type RequestMessage =
   | { type: "GET_SUBTITLES"; platform: Platform; videoId: string }
   | { type: "GET_STATUS"; platform: Platform; videoId: string }
-  | { type: "START_GENERATION"; platform: Platform; videoId: string };
+  | { type: "START_GENERATION"; platform: Platform; videoId: string }
+  | { type: "START_STREAMING"; youtubeUrl: string; seekSec: number; serverUrl: string; keepCues?: boolean }
+  | { type: "STOP_STREAMING" };
 
 /** background → 요청자 응답 메시지 */
 export type ResponseMessage =
   | { type: "SUBTITLES_OK"; track: SubtitleTrack }
   | { type: "STATUS_OK"; status: SubtitleStatus }
   | { type: "GENERATION_STARTED"; etaSeconds: number }
+  | { type: "STREAMING_STARTED" }
   | { type: "ERR"; error: string };
 
-/** background → content 브로드캐스트 (생성 완료 알림) */
-export type BroadcastMessage = {
-  type: "SUBTITLES_READY";
-  platform: Platform;
-  videoId: string;
-};
+/** background → content 브로드캐스트 */
+export type BroadcastMessage =
+  | { type: "SUBTITLES_READY"; platform: Platform; videoId: string }
+  | { type: "CUE_READY"; cues: SubtitleCue[] }
+  | { type: "STREAMING_ERROR"; message: string };
 
 /** sendMessage 를 Promise로 감싸는 헬퍼 */
 function send<R extends ResponseMessage>(

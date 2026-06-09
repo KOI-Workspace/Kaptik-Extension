@@ -51,5 +51,7 @@ export default defineManifest({
     "*://*.instagram.com/*",
     // Kaptik 백엔드 (개발 중) — 실제 도메인 확정 시 교체
     "https://api.kaptik.app/*",
+    // 로컬 스트리밍 서버 (ws:// 연결은 http:// prefix로 권한 부여)
+    "http://localhost:8000/*",
   ],
 });
