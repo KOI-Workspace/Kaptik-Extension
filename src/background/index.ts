@@ -24,8 +24,53 @@ const trackCache = new Map<string, SubtitleTrack>();
 /** tabId → 현재 스트리밍 세션 + 누적 cue 배열 */
 const streamingSessions = new Map<number, { session: StreamingSession; cues: SubtitleCue[] }>();
 
+/** tabId → 라이브 스트리밍 세션 상태 */
+interface LiveSession {
+  sessionId: string;
+  platform: Platform;
+  videoId: string;
+  captureStartVideoTime: number;
+  captureStartWallTime: number;
+  cues: SubtitleCue[];
+  pending: Map<number, { text_ko: string; speaker: string }>;
+  seekSent: boolean;
+  seekTimer: ReturnType<typeof setTimeout> | null;
+}
+const liveSessions = new Map<number, LiveSession>();
+
 /** jobId → 진행 모니터링 WebSocket */
 const jobSockets = new Map<string, WebSocket>();
+
+// ── 오프스크린 문서 관리 ─────────────────────────────────
+
+async function ensureOffscreen(): Promise<void> {
+  // chrome.offscreen is Chrome 109+
+  const offscreen = (chrome as unknown as Record<string, unknown>).offscreen as {
+    createDocument(opts: { url: string; reasons: string[]; justification: string }): Promise<void>;
+  } | undefined;
+  if (!offscreen) return;
+
+  const existingContexts = await chrome.runtime.getContexts({
+    contextTypes: ["OFFSCREEN_DOCUMENT" as chrome.runtime.ContextType],
+  });
+  if (existingContexts.length > 0) return;
+
+  await offscreen.createDocument({
+    url: chrome.runtime.getURL("src/offscreen/index.html"),
+    reasons: ["AUDIO_CAPTURE"],
+    justification: "Capture tab audio for live stream transcription",
+  });
+}
+
+async function closeOffscreen(): Promise<void> {
+  const offscreen = (chrome as unknown as Record<string, unknown>).offscreen as {
+    closeDocument?(): Promise<void>;
+  } | undefined;
+  if (!offscreen?.closeDocument) return;
+  try {
+    await offscreen.closeDocument();
+  } catch { /* already closed */ }
+}
 
 function cacheKey(platform: string, videoId: string): string {
   return `${platform}:${videoId}`;
@@ -166,6 +211,144 @@ async function broadcastReady(platform: Platform, videoId: string): Promise<void
   }
 }
 
+// ── 라이브 스트리밍 ──────────────────────────────────────
+
+async function handleStartLiveStreaming(
+  tabId: number,
+  platform: Platform,
+  videoId: string,
+  captureStartVideoTime: number,
+): Promise<ResponseMessage> {
+  const settings = await getSettings();
+  const { serverUrl, authToken, language } = settings;
+
+  // 기존 라이브 세션 정리
+  const prev = liveSessions.get(tabId);
+  if (prev) {
+    prev.seekTimer && clearTimeout(prev.seekTimer);
+    chrome.runtime.sendMessage({ type: "STOP_CAPTURE" }).catch(() => {});
+    liveSessions.delete(tabId);
+  }
+
+  const sessionId = `live-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const session: LiveSession = {
+    sessionId,
+    platform,
+    videoId,
+    captureStartVideoTime,
+    captureStartWallTime: Date.now(),
+    cues: [],
+    pending: new Map(),
+    seekSent: false,
+    seekTimer: null,
+  };
+  liveSessions.set(tabId, session);
+
+  let streamId: string;
+  try {
+    streamId = await new Promise<string>((resolve, reject) => {
+      chrome.tabCapture.getMediaStreamId({ targetTabId: tabId }, (id) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          resolve(id);
+        }
+      });
+    });
+  } catch (e) {
+    liveSessions.delete(tabId);
+    console.error("[Kaptik BG] tabCapture.getMediaStreamId 실패:", e);
+    return { type: "ERR", error: e instanceof Error ? e.message : "tabCapture 실패" };
+  }
+
+  await ensureOffscreen();
+
+  chrome.runtime.sendMessage({
+    type: "CAPTURE_TAB",
+    streamId,
+    sessionId,
+    serverUrl,
+    authToken,
+    targetLang: language,
+  }).catch(() => {});
+
+  // 30초 후 아직 seek를 보내지 않았으면 SEEK_AND_SHOW 발송
+  session.seekTimer = setTimeout(() => {
+    const live = liveSessions.get(tabId);
+    if (live && !live.seekSent) {
+      live.seekSent = true;
+      const msg: BroadcastMessage = { type: "SEEK_AND_SHOW", seekSec: 30 };
+      chrome.tabs.sendMessage(tabId, msg).catch(() => {});
+      console.info(`[Kaptik BG] SEEK_AND_SHOW tabId=${tabId}`);
+    }
+  }, 30_000);
+
+  console.info(`[Kaptik BG] 라이브 스트리밍 시작 tabId=${tabId} sessionId=${sessionId}`);
+  return { type: "STREAMING_STARTED" };
+}
+
+function handleStopLiveStreaming(tabId: number): void {
+  const session = liveSessions.get(tabId);
+  if (!session) return;
+  session.seekTimer && clearTimeout(session.seekTimer);
+  chrome.runtime.sendMessage({ type: "STOP_CAPTURE" }).catch(() => {});
+  liveSessions.delete(tabId);
+
+  // 다른 라이브 세션이 없으면 오프스크린 닫기
+  if (liveSessions.size === 0) {
+    void closeOffscreen();
+  }
+  console.info(`[Kaptik BG] 라이브 스트리밍 중단 tabId=${tabId}`);
+}
+
+/** 오프스크린에서 전달된 STT 메시지를 처리해 CUE_READY를 브로드캐스트한다. */
+function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
+  const session = liveSessions.get(tabId);
+  if (!session) return;
+
+  const offset = session.captureStartVideoTime;
+
+  if (data.stage === 1) {
+    const ts = Number(data.ts);
+    session.pending.set(ts, {
+      text_ko: String(data.text_ko ?? ""),
+      speaker: String(data.speaker ?? ""),
+    });
+    return;
+  }
+
+  if (data.stage === 2 && !data.streaming) {
+    const ts = Number(data.ts);
+    const p = session.pending.get(ts);
+    if (!p) return;
+    session.pending.delete(ts);
+
+    const start = ts / 1000 + offset;
+    const cue: SubtitleCue = {
+      start,
+      end: start + 6,
+      speakerId: p.speaker || undefined,
+      text: { ko: p.text_ko, en: String(data.text_en ?? "") },
+      annotations: (data.annotations as SubtitleCue["annotations"]) ?? [],
+    };
+
+    session.cues.push(cue);
+    session.cues.sort((a, b) => a.start - b.start);
+
+    const msg: BroadcastMessage = { type: "CUE_READY", cues: [...session.cues] };
+    chrome.tabs.sendMessage(tabId, msg).catch(() => {});
+
+    // 첫 cue가 도착하고 30초 분량(ts >= 30s)이면 즉시 SEEK_AND_SHOW
+    if (!session.seekSent && ts >= 30_000) {
+      session.seekSent = true;
+      session.seekTimer && clearTimeout(session.seekTimer);
+      const seekMsg: BroadcastMessage = { type: "SEEK_AND_SHOW", seekSec: 30 };
+      chrome.tabs.sendMessage(tabId, seekMsg).catch(() => {});
+      console.info(`[Kaptik BG] 조기 SEEK_AND_SHOW (ts=${ts}ms) tabId=${tabId}`);
+    }
+  }
+}
+
 // ── 스트리밍 세션 관리 ────────────────────────────────────
 
 async function handleStartStreaming(
@@ -233,29 +416,59 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     entry.session.disconnect();
     streamingSessions.delete(tabId);
   }
+  if (liveSessions.has(tabId)) {
+    handleStopLiveStreaming(tabId);
+  }
 });
 
 // ── 메시지 라우팅 ─────────────────────────────────────────
+
+/** 오프스크린 → 백그라운드 내부 메시지 */
+type OffscreenMessage =
+  | { type: "LIVE_CUE_MSG"; data: Record<string, unknown> }
+  | { type: "LIVE_STREAM_ERROR"; message: string }
+  | { type: "LIVE_WS_CLOSED"; code: number; reason: string };
+
 chrome.runtime.onMessage.addListener(
-  (message: RequestMessage, sender, sendResponse) => {
+  (message: RequestMessage | OffscreenMessage, sender, sendResponse) => {
+    // 오프스크린에서 오는 STT 결과 메시지
+    if (
+      message.type === "LIVE_CUE_MSG" ||
+      message.type === "LIVE_STREAM_ERROR" ||
+      message.type === "LIVE_WS_CLOSED"
+    ) {
+      if (message.type === "LIVE_CUE_MSG") {
+        for (const [tabId] of liveSessions) {
+          handleLiveCueMsg(tabId, message.data);
+        }
+      } else if (message.type === "LIVE_STREAM_ERROR") {
+        console.error("[Kaptik BG] 라이브 스트림 오류:", message.message);
+      } else if (message.type === "LIVE_WS_CLOSED") {
+        console.info(`[Kaptik BG] 라이브 WS 종료 code=${message.code}`);
+      }
+      sendResponse(null);
+      return false;
+    }
+
     const route = async (): Promise<ResponseMessage> => {
       try {
-        switch (message.type) {
+        const req = message as RequestMessage;
+        switch (req.type) {
           case "GET_SUBTITLES":
-            return await handleGetSubtitles(message.platform, message.videoId);
+            return await handleGetSubtitles(req.platform, req.videoId);
           case "GET_STATUS":
-            return await handleGetStatus(message.platform, message.videoId);
+            return await handleGetStatus(req.platform, req.videoId);
           case "START_GENERATION":
-            return await handleStartGeneration(message.platform, message.videoId);
+            return await handleStartGeneration(req.platform, req.videoId);
           case "START_STREAMING": {
             const tabId = sender.tab?.id;
             if (!tabId) return { type: "ERR", error: "tabId 없음" };
             return await handleStartStreaming(
               tabId,
-              message.youtubeUrl,
-              message.seekSec,
-              message.serverUrl,
-              message.keepCues ?? false,
+              req.youtubeUrl,
+              req.seekSec,
+              req.serverUrl,
+              req.keepCues ?? false,
             );
           }
           case "STOP_STREAMING": {
@@ -265,7 +478,22 @@ chrome.runtime.onMessage.addListener(
               streamingSessions.delete(tabId);
               console.info(`[Kaptik BG] 스트리밍 중단 tabId=${tabId}`);
             }
-            return { type: "ERR", error: "" }; // 응답 불필요, 빈 응답
+            return { type: "ERR", error: "" };
+          }
+          case "START_LIVE_STREAMING": {
+            const tabId = sender.tab?.id;
+            if (!tabId) return { type: "ERR", error: "tabId 없음" };
+            return await handleStartLiveStreaming(
+              tabId,
+              req.platform,
+              req.videoId,
+              req.captureStartVideoTime,
+            );
+          }
+          case "STOP_LIVE_STREAMING": {
+            const tabId = sender.tab?.id;
+            if (tabId) handleStopLiveStreaming(tabId);
+            return { type: "ERR", error: "" };
           }
           default:
             return { type: "ERR", error: "알 수 없는 메시지" };
@@ -289,8 +517,9 @@ chrome.runtime.onInstalled.addListener((details) => {
 // 스트리밍 세션이 활성 중일 때 서비스 워커가 sleep되지 않도록 20초마다 ping
 // (MV3 SW는 30초 idle 후 종료되어 WS 연결이 끊김)
 setInterval(() => {
-  if (streamingSessions.size > 0) {
-    console.debug(`[Kaptik BG] keepalive (활성 세션 ${streamingSessions.size}개)`);
+  const total = streamingSessions.size + liveSessions.size;
+  if (total > 0) {
+    console.debug(`[Kaptik BG] keepalive (VOD ${streamingSessions.size}개, 라이브 ${liveSessions.size}개)`);
   }
 }, 20_000);
 

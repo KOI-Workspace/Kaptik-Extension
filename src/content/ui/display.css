@@ -525,3 +525,19 @@
     transform: translateY(0);
   }
 }
+
+/* ── 라이브 지연 배지 ── */
+.kaptik-live-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 60, 60, 0.18);
+  border: 1px solid rgba(255, 80, 80, 0.35);
+  color: #ff6b6b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}

@@ -78,6 +78,12 @@ class SubtitleController {
         this.mounted?.handle.updateCues(message.cues);
       } else if (message?.type === "STREAMING_ERROR") {
         console.error("[Kaptik] 스트리밍 오류:", message.message);
+      } else if (message?.type === "SEEK_AND_SHOW") {
+        const video = this.mounted?.video;
+        if (video) {
+          video.currentTime = Math.max(0, video.currentTime - message.seekSec);
+          console.info(`[Kaptik] 라이브 싱크 seek -${message.seekSec}s → ${video.currentTime.toFixed(1)}s`);
+        }
       }
     });
 
@@ -139,6 +145,8 @@ class SubtitleController {
         return;
       }
 
+      const isLive = this.adapter.isLive?.(location.href) ?? false;
+
       // 빈 트랙으로 먼저 마운트한 뒤 스트리밍으로 cue를 채운다
       const emptyTrack: SubtitleTrack = {
         platform: this.adapter.platform,
@@ -147,57 +155,87 @@ class SubtitleController {
         availableLanguages: ["ko", "en"],
         members: {},
       };
-      const handle = mountDisplay(container, panelContainer, video, emptyTrack);
+      const handle = mountDisplay(container, panelContainer, video, emptyTrack, isLive);
       this.mounted = { videoId, panelContainer, handle, video };
 
-      const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      if (isLive) {
+        // ── 라이브 경로: 탭 오디오 캡처 → 오프스크린 → 백엔드 WS ──
+        const startLive = () => {
+          chrome.runtime.sendMessage({
+            type: "START_LIVE_STREAMING",
+            platform: this.adapter.platform,
+            videoId,
+            captureStartVideoTime: Math.floor(video.currentTime),
+          }).catch((err: unknown) =>
+            console.error("[Kaptik] START_LIVE_STREAMING 실패:", err),
+          );
+          console.info(`[Kaptik] 라이브 스트리밍 시작 (${videoId})`);
+        };
+        this.startStreamingFn = () => { /* 라이브는 재시작 없음 */ };
 
-      const startStreaming = (seekSec: number, keepCues = false) => {
-        chrome.runtime.sendMessage({
-          type: "START_STREAMING",
-          youtubeUrl,
-          seekSec,
-          serverUrl: this.settings.serverUrl,
-          keepCues,
-        }).catch((err: unknown) => console.error("[Kaptik] START_STREAMING 실패:", err));
-        console.info(`[Kaptik] 스트리밍 요청 (${videoId}, seek=${seekSec}s, keepCues=${keepCues})`);
-      };
-      this.startStreamingFn = startStreaming;
+        startLive();
 
-      startStreaming(Math.floor(video.currentTime));
+        // 일시정지/재생에 따라 캡처 중단/재개
+        const onPaused = () => {
+          chrome.runtime.sendMessage({ type: "STOP_LIVE_STREAMING" }).catch(() => {});
+        };
+        const onPlaying = () => { startLive(); };
 
-      let seekTimer: ReturnType<typeof setTimeout> | undefined;
+        video.addEventListener("pause", onPaused);
+        video.addEventListener("playing", onPlaying);
+        this.videoCleanup = () => {
+          video.removeEventListener("pause", onPaused);
+          video.removeEventListener("playing", onPlaying);
+        };
+      } else {
+        // ── VOD 경로: YouTube WS 스트리밍 ──
+        const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-      // 일시정지 → STT 중단
-      const onPaused = () => {
-        chrome.runtime.sendMessage({ type: "STOP_STREAMING" }).catch(() => {});
-        console.info(`[Kaptik] 일시정지 → 스트리밍 중단 (${videoId})`);
-      };
+        const startStreaming = (seekSec: number, keepCues = false) => {
+          chrome.runtime.sendMessage({
+            type: "START_STREAMING",
+            youtubeUrl,
+            seekSec,
+            serverUrl: this.settings.serverUrl,
+            keepCues,
+          }).catch((err: unknown) => console.error("[Kaptik] START_STREAMING 실패:", err));
+          console.info(`[Kaptik] 스트리밍 요청 (${videoId}, seek=${seekSec}s, keepCues=${keepCues})`);
+        };
+        this.startStreamingFn = startStreaming;
 
-      // 재생 재개 → 현재 위치부터 재스트리밍 (기존 cue 유지)
-      const onPlaying = () => {
-        clearTimeout(seekTimer);
-        startStreaming(Math.floor(video.currentTime), true);
-      };
+        startStreaming(Math.floor(video.currentTime));
 
-      // seek 완료 → 재생 중일 때만 500ms 디바운스 후 재스트리밍
-      const onSeeked = () => {
-        if (video.paused) return; // 일시정지 중 탐색은 play 이벤트가 처리
-        clearTimeout(seekTimer);
-        seekTimer = setTimeout(() => startStreaming(Math.floor(video.currentTime), true), 500);
-      };
+        let seekTimer: ReturnType<typeof setTimeout> | undefined;
 
-      video.addEventListener("pause", onPaused);
-      video.addEventListener("playing", onPlaying);
-      video.addEventListener("seeked", onSeeked);
-      this.videoCleanup = () => {
-        clearTimeout(seekTimer);
-        video.removeEventListener("pause", onPaused);
-        video.removeEventListener("playing", onPlaying);
-        video.removeEventListener("seeked", onSeeked);
-      };
+        const onPaused = () => {
+          chrome.runtime.sendMessage({ type: "STOP_STREAMING" }).catch(() => {});
+          console.info(`[Kaptik] 일시정지 → 스트리밍 중단 (${videoId})`);
+        };
+        const onPlaying = () => {
+          clearTimeout(seekTimer);
+          startStreaming(Math.floor(video.currentTime), true);
+        };
+        const onSeeked = () => {
+          if (video.paused) return;
+          clearTimeout(seekTimer);
+          seekTimer = setTimeout(
+            () => startStreaming(Math.floor(video.currentTime), true),
+            500,
+          );
+        };
 
-      console.info(`[Kaptik] 자막 마운트 완료 (${this.adapter.platform}/${videoId})`);
+        video.addEventListener("pause", onPaused);
+        video.addEventListener("playing", onPlaying);
+        video.addEventListener("seeked", onSeeked);
+        this.videoCleanup = () => {
+          clearTimeout(seekTimer);
+          video.removeEventListener("pause", onPaused);
+          video.removeEventListener("playing", onPlaying);
+          video.removeEventListener("seeked", onSeeked);
+        };
+      }
+
+      console.info(`[Kaptik] 자막 마운트 완료 (${this.adapter.platform}/${videoId}, isLive=${isLive})`);
     } finally {
       this.evaluating = false;
     }
@@ -210,6 +248,7 @@ class SubtitleController {
     this.startStreamingFn = null;
     if (this.mounted) {
       chrome.runtime.sendMessage({ type: "STOP_STREAMING" }).catch(() => {});
+      chrome.runtime.sendMessage({ type: "STOP_LIVE_STREAMING" }).catch(() => {});
     }
     this.mounted?.handle.destroy();
     this.mounted = null;

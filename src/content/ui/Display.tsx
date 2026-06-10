@@ -11,6 +11,8 @@ interface DisplayProps {
   panelMount: HTMLElement | null;
   /** 패널을 사이드 컬럼에 도킹하는지 여부 */
   panelDocked: boolean;
+  /** 라이브 스트림 여부 */
+  isLive?: boolean;
 }
 
 /**
@@ -19,7 +21,7 @@ interface DisplayProps {
  * - 가운데 자막: 이 컴포넌트가 속한 오버레이에 직접 렌더
  * - 우측 패널: 도킹 모드면 createPortal로 사이드 컬럼(panelMount)에, 아니면 오버레이 안에 렌더
  */
-export function Display({ video, track, panelMount, panelDocked }: DisplayProps) {
+export function Display({ video, track, panelMount, panelDocked, isLive = false }: DisplayProps) {
   const settings = useSettings();
   const activeIndex = useActiveIndex(video, track.cues);
 
@@ -50,6 +52,7 @@ export function Display({ video, track, panelMount, panelDocked }: DisplayProps)
           activeIndex={activeIndex}
           settings={settings}
           variant="overlay"
+          isLive={isLive}
         />
       )}
 
@@ -64,6 +67,7 @@ export function Display({ video, track, panelMount, panelDocked }: DisplayProps)
             activeIndex={activeIndex}
             settings={settings}
             variant="docked"
+            isLive={isLive}
           />,
           panelMount,
         )}

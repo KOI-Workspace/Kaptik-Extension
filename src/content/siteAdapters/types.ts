@@ -26,4 +26,6 @@ export interface SiteAdapter {
    * 적절한 위치가 없으면 null — 이 경우 패널은 영상 위 오버레이로 폴백한다.
    */
   getPanelContainer(): HTMLElement | null;
+  /** 현재 URL이 라이브 스트림인지 여부 (미구현 어댑터는 항상 false). */
+  isLive?(url: string): boolean;
 }

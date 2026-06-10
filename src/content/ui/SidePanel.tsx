@@ -15,6 +15,8 @@ interface SidePanelProps {
   settings: KaptikSettings;
   /** docked: 사이드 컬럼에 끼워진 일반 블록 / overlay: 영상 위에 떠 있는 형태 */
   variant: "docked" | "overlay";
+  /** true면 라이브 스트림 — 지연 배지와 상대 시간 라벨을 표시한다 */
+  isLive?: boolean;
 }
 
 /** 현재 열린 주석 위치 */
@@ -38,6 +40,18 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+/** 라이브 상대 시간 — latestStart 기준으로 몇 초/분 전인지 */
+function formatLiveTime(
+  cueStart: number,
+  latestStart: number,
+  t: import("@/shared/i18n").Messages,
+): string {
+  const diffSec = Math.max(0, Math.floor(latestStart - cueStart));
+  if (diffSec < 5) return t.liveJustNow;
+  if (diffSec < 60) return t.liveAgoSec(diffSec);
+  return t.liveAgoMin(Math.floor(diffSec / 60));
+}
+
 /**
  * 영상 오른쪽 히스토리 패널.
  * 지나간 발화를 채팅형 타임라인으로 보여주고, 타임스탬프 클릭 시 해당 위치로 이동한다.
@@ -49,6 +63,7 @@ export function SidePanel({
   activeIndex,
   settings,
   variant,
+  isLive = false,
 }: SidePanelProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const [atBottom, setAtBottom] = useState(true);
@@ -91,6 +106,8 @@ export function SidePanel({
 
   // 지나간 발화만 히스토리로 노출
   const history = activeIndex >= 0 ? track.cues.slice(0, activeIndex + 1) : [];
+  // 라이브 상대 시간 기준점 — 가장 최근 발화의 start
+  const latestStart = history.length > 0 ? history[history.length - 1].start : 0;
 
   // 트랙이 제공하는 언어 중 UI 지원 언어(한국어 제외)만 선택지로 노출
   const available = track.availableLanguages.filter((c) =>
@@ -105,6 +122,9 @@ export function SidePanel({
         <div className="kaptik-panel-title">
           <span className="kaptik-panel-dot" />
           {t.panelTitle}
+          {isLive && (
+            <span className="kaptik-live-badge">{t.liveDelayBadge}</span>
+          )}
         </div>
         <div className="kaptik-panel-actions">
           <select
@@ -177,9 +197,15 @@ export function SidePanel({
                       type="button"
                       className="kaptik-row-time"
                       onClick={() => seekTo(cue.start)}
-                      aria-label={t.seekTo(formatTime(cue.start))}
+                      aria-label={
+                        isLive
+                          ? formatLiveTime(cue.start, latestStart, t)
+                          : t.seekTo(formatTime(cue.start))
+                      }
                     >
-                      {formatTime(cue.start)}
+                      {isLive
+                        ? formatLiveTime(cue.start, latestStart, t)
+                        : formatTime(cue.start)}
                     </button>
                   </div>
                   <div
