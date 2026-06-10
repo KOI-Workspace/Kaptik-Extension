@@ -6,7 +6,9 @@ export type RequestMessage =
   | { type: "GET_STATUS"; platform: Platform; videoId: string }
   | { type: "START_GENERATION"; platform: Platform; videoId: string }
   | { type: "START_STREAMING"; youtubeUrl: string; seekSec: number; serverUrl: string; keepCues?: boolean }
-  | { type: "STOP_STREAMING" };
+  | { type: "STOP_STREAMING" }
+  | { type: "START_LIVE_STREAMING"; platform: Platform; videoId: string; captureStartVideoTime: number }
+  | { type: "STOP_LIVE_STREAMING" };
 
 /** background → 요청자 응답 메시지 */
 export type ResponseMessage =
@@ -20,7 +22,8 @@ export type ResponseMessage =
 export type BroadcastMessage =
   | { type: "SUBTITLES_READY"; platform: Platform; videoId: string }
   | { type: "CUE_READY"; cues: SubtitleCue[] }
-  | { type: "STREAMING_ERROR"; message: string };
+  | { type: "STREAMING_ERROR"; message: string }
+  | { type: "SEEK_AND_SHOW"; seekSec: number };
 
 /** sendMessage 를 Promise로 감싸는 헬퍼 */
 function send<R extends ResponseMessage>(

@@ -49,6 +49,7 @@ export function mountDisplay(
   panelContainer: HTMLElement | null,
   video: HTMLVideoElement,
   track: SubtitleTrack,
+  isLive = false,
 ): DisplayHandle {
   // 중복 마운트 방지
   overlayContainer.querySelector(`#${OVERLAY_HOST_ID}`)?.remove();
@@ -92,6 +93,7 @@ export function mountDisplay(
         track={{ ...track, cues }}
         panelMount={panelMount}
         panelDocked={panelDocked}
+        isLive={isLive}
       />
     );
   }

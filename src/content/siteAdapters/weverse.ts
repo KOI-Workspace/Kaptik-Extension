@@ -45,4 +45,12 @@ export const weverseAdapter: SiteAdapter = {
     const video = this.getVideoElement();
     return video ? findDockColumn(video) : null;
   },
+
+  isLive(url: string): boolean {
+    try {
+      return new URL(url).pathname.includes("/live/");
+    } catch {
+      return false;
+    }
+  },
 };
