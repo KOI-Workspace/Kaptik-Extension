@@ -125,11 +125,13 @@ export class StreamingSession {
       // ts = chunk.start_ms + seek_sec * 1000 (백엔드에서 절대값으로 변환)
       // seekSec를 다시 더하면 두 배가 되므로 /1000만 사용
       const start = ts / 1000;
+      const rawAnnotations = Array.isArray(msg.annotations) ? msg.annotations : [];
       const cue = {
         start,
         end: start + 6,
         speakerId: p.speaker || undefined,
         text: { ko: p.text_ko, en: String(msg.text_en ?? "") },
+        annotations: rawAnnotations.length > 0 ? rawAnnotations : undefined,
       };
       console.info(`[Kaptik WS] Stage2 t=${start.toFixed(1)}s: "${cue.text.en}"`);
       this.onCueReady(cue);

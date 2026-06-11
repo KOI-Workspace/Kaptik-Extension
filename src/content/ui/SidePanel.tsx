@@ -104,8 +104,11 @@ export function SidePanel({
     );
   };
 
-  // 지나간 발화만 히스토리로 노출
-  const history = activeIndex >= 0 ? track.cues.slice(0, activeIndex + 1) : [];
+  // 라이브: 아직 오지 않은 자막은 없으므로 activeIndex까지만 노출
+  // VOD: 이미 받은 자막은 seek로 뒤로 가도 그대로 유지, 현재 위치만 하이라이트
+  const history = isLive
+    ? activeIndex >= 0 ? track.cues.slice(0, activeIndex + 1) : []
+    : track.cues;
   // 라이브 상대 시간 기준점 — 가장 최근 발화의 start
   const latestStart = history.length > 0 ? history[history.length - 1].start : 0;
 
