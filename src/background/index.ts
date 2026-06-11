@@ -127,7 +127,7 @@ async function handleStartGeneration(
   // 로컬 상태를 generating으로 전이 — 팝업 폴링이 즉시 반영되도록
   const etaSeconds = await startLocalJob(platform, videoId);
 
-  openJobSocket(jobId, platform, videoId, serverUrl, authToken);
+  openJobSocket(jobId, platform, videoId, serverUrl, authToken, devMode);
   return { type: "GENERATION_STARTED", etaSeconds };
 }
 
@@ -138,10 +138,28 @@ function openJobSocket(
   videoId: string,
   serverUrl: string,
   authToken: string,
+  devMode = false,
 ): void {
   const token = authToken ? `?token=${encodeURIComponent(authToken)}` : "";
   const ws = new WebSocket(`${serverUrl}/ws-job/${jobId}${token}`);
   jobSockets.set(jobId, ws);
+
+  const finish = () => {
+    if (!jobSockets.has(jobId)) return; // 이미 완료 처리됨
+    ws.close();
+    jobSockets.delete(jobId);
+    void completeLocalJob(platform, videoId);
+    void onGenerationComplete(platform, videoId);
+  };
+
+  // devMode: 60초 후 강제 완료 — 긴 영상도 1분치 생성되면 바로 확인 가능
+  let devTimer: ReturnType<typeof setTimeout> | undefined;
+  if (devMode) {
+    devTimer = setTimeout(() => {
+      console.info(`[Kaptik BG] devMode 60s 강제 완료 jobId=${jobId}`);
+      finish();
+    }, 60_000);
+  }
 
   ws.onmessage = (e: MessageEvent<string>) => {
     try {
@@ -153,12 +171,11 @@ function openJobSocket(
         void updateJobProgress(platform, videoId, step, pct);
       } else if (msg.type === "done") {
         console.info(`[Kaptik BG] Job ${jobId} 완료 total_cues=${String(msg.total_cues ?? 0)}`);
-        ws.close();
-        jobSockets.delete(jobId);
-        void completeLocalJob(platform, videoId);
-        void onGenerationComplete(platform, videoId);
+        clearTimeout(devTimer);
+        finish();
       } else if (msg.type === "error") {
         console.error(`[Kaptik BG] Job ${jobId} 오류:`, String(msg.message ?? ""));
+        clearTimeout(devTimer);
         ws.close();
         jobSockets.delete(jobId);
       }
@@ -167,10 +184,12 @@ function openJobSocket(
 
   ws.onerror = () => {
     console.error(`[Kaptik BG] Job socket 오류 jobId=${jobId}`);
+    clearTimeout(devTimer);
     jobSockets.delete(jobId);
   };
 
   ws.onclose = () => {
+    clearTimeout(devTimer);
     jobSockets.delete(jobId);
   };
 }
