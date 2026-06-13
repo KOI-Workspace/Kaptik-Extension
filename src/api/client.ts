@@ -94,20 +94,12 @@ export async function createJob(opts: {
   authToken: string;
   url: string;
   targetLang: string;
-  ytCookies?: chrome.cookies.Cookie[];
-  poToken?: string;
 }): Promise<{ jobId: string }> {
   const base = wsUrlToHttp(opts.serverUrl);
-  const body: Record<string, unknown> = {
-    url: opts.url,
-    target_lang: opts.targetLang,
-  };
-  if (opts.ytCookies?.length) body.yt_cookies = opts.ytCookies;
-  if (opts.poToken) body.po_token = opts.poToken;
-
+  const tokenParam = opts.authToken ? `?token=${encodeURIComponent(opts.authToken)}` : "";
   const res = await fetchJson<{ job_id: string }>(
-    `${base}/jobs`,
-    { method: "POST", body, authToken: opts.authToken },
+    `${base}/jobs${tokenParam}`,
+    { method: "POST", body: { url: opts.url, target_lang: opts.targetLang }, authToken: opts.authToken },
   );
   return { jobId: res.job_id };
 }
@@ -121,5 +113,6 @@ export async function fetchJob(opts: {
   jobId: string;
 }): Promise<JobResponse> {
   const base = wsUrlToHttp(opts.serverUrl);
-  return fetchJson<JobResponse>(`${base}/jobs/${opts.jobId}`, { authToken: opts.authToken });
+  const tokenParam = opts.authToken ? `?token=${encodeURIComponent(opts.authToken)}` : "";
+  return fetchJson<JobResponse>(`${base}/jobs/${opts.jobId}${tokenParam}`, { authToken: opts.authToken });
 }

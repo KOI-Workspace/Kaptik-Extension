@@ -17,7 +17,6 @@ import {
   completeLocalJob,
 } from "./generationStore";
 import { StreamingSession } from "@/api/wsClient";
-import { getYtCookies, getPoToken } from "./ytCredentials";
 
 /** 자막 트랙 메모리 캐시 (서비스 워커 생존 동안 유효) */
 const trackCache = new Map<string, SubtitleTrack>();
@@ -113,11 +112,9 @@ async function handleStartGeneration(
   // YouTube만 지원 (타 플랫폼은 라이브 스트리밍 경로)
   const url = `https://www.youtube.com/watch?v=${videoId}`;
 
-  const [ytCookies, poToken] = await Promise.all([getYtCookies(), getPoToken()]);
-
   let jobId: string;
   try {
-    const result = await createJob({ serverUrl, authToken, url, targetLang: language, ytCookies, poToken });
+    const result = await createJob({ serverUrl, authToken, url, targetLang: language });
     jobId = result.jobId;
   } catch (e) {
     console.error("[Kaptik BG] Job 생성 실패:", e);
@@ -409,7 +406,9 @@ async function handleStartStreaming(
   const prev = streamingSessions.get(tabId);
   prev?.session.disconnect();
 
-  const cues: SubtitleCue[] = keepCues ? (prev?.cues ?? []) : [];
+  const cues: SubtitleCue[] = keepCues
+    ? (prev?.cues ?? []).filter((c) => c.start < seekSec)
+    : [];
 
   const session = new StreamingSession(
     youtubeUrl,
