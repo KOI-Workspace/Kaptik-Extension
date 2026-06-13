@@ -128,7 +128,9 @@ export function Popup() {
   const handleGenerate = () => {
     if (!target) return;
     setStatus({ state: "generating", etaSeconds: 120, progress: 0 });
-    void startGeneration(target.platform, target.videoId);
+    void startGeneration(target.platform, target.videoId).then((eta) => {
+      if (eta === null) setStatus({ state: "failed" });
+    });
   };
 
   const handleRetry = () => {
@@ -208,8 +210,11 @@ export function Popup() {
           patch={patch}
           t={t}
           onUpgrade={openPricing}
+          isLive={target.isLive}
         />
       )}
+
+      <DevSettingsSection settings={settings} patch={patch} />
     </div>
   );
 }
@@ -245,10 +250,8 @@ function NoneView({ t, onGenerate }: { t: Messages; onGenerate: () => void }) {
 
 /** 백엔드 step 값을 표시용 레이블로 변환 */
 const STEP_LABELS: Record<string, string> = {
-  analyze: "Analyzing link…",
-  captions: "Extracting captions…",
-  stt: "Transcribing audio…",
-  translate: "Translating…",
+  fetch: "Fetching captions…",
+  translate: "AI Translating…",
 };
 
 function GeneratingView({
@@ -332,11 +335,13 @@ function AvailableView({
   patch,
   t,
   onUpgrade,
+  isLive,
 }: {
   settings: KaptikSettings;
   patch: (next: Partial<KaptikSettings>) => void;
   t: Messages;
   onUpgrade: () => void;
+  isLive: boolean;
 }) {
   // 자막이 꺼져 있으면 '자막 보기'로 켜도록 유도
   if (!settings.enabled) {
@@ -376,14 +381,16 @@ function AvailableView({
           </select>
         </div>
 
-        <div className="row">
-          <span className="row-label">{t.speakerLabel}</span>
-          <Switch
-            checked={settings.showSpeaker}
-            onChange={(v) => patch({ showSpeaker: v })}
-            ariaLabel={t.speakerLabel}
-          />
-        </div>
+        {isLive && (
+          <div className="row">
+            <span className="row-label">{t.speakerLabel}</span>
+            <Switch
+              checked={settings.showSpeaker}
+              onChange={(v) => patch({ showSpeaker: v })}
+              ariaLabel={t.speakerLabel}
+            />
+          </div>
+        )}
 
         <div className="row">
           <span className="row-label">{t.panelLabel}</span>
@@ -456,44 +463,65 @@ function AvailableView({
           />
         </div>
 
-        {/* 개발용: 스트리밍 백엔드 서버 URL */}
-        <div className="row" style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
-          <span className="row-label row-dev">Server URL (dev)</span>
-          <input
-            type="text"
-            className="select"
-            style={{ width: "100%", boxSizing: "border-box" }}
-            value={settings.serverUrl}
-            placeholder="ws://localhost:8000"
-            onChange={(e) => patch({ serverUrl: e.target.value })}
-          />
-        </div>
+      </div>
+    </>
+  );
+}
 
-        {/* 개발용: Dev Mode 토글 — token="dev" 자동 전송 */}
-        <div className="row">
-          <span className="row-label row-dev">Dev Mode (skip auth)</span>
-          <Switch
-            checked={settings.devMode}
-            onChange={(v) => patch({ devMode: v })}
-            ariaLabel="Dev Mode"
-          />
-        </div>
-
-        {/* 개발용: JWT 인증 토큰 — devMode 꺼진 경우만 표시 */}
-        {!settings.devMode && (
+function DevSettingsSection({
+  settings,
+  patch,
+}: {
+  settings: KaptikSettings;
+  patch: (next: Partial<KaptikSettings>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="dev-section">
+      <button
+        type="button"
+        className="dev-section-toggle"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        Dev {open ? "▾" : "▸"}
+      </button>
+      {open && (
+        <div className="card dev-card">
           <div className="row" style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
-            <span className="row-label row-dev">Auth Token (dev)</span>
+            <span className="row-label row-dev">Server URL (dev)</span>
             <input
               type="text"
               className="select"
               style={{ width: "100%", boxSizing: "border-box" }}
-              value={settings.authToken}
-              placeholder="eyJ... (dev-token)"
-              onChange={(e) => patch({ authToken: e.target.value })}
+              value={settings.serverUrl}
+              placeholder="ws://localhost:8000"
+              onChange={(e) => patch({ serverUrl: e.target.value })}
             />
           </div>
-        )}
-      </div>
-    </>
+          <div className="row">
+            <span className="row-label row-dev">Dev Mode (skip auth)</span>
+            <Switch
+              checked={settings.devMode}
+              onChange={(v) => patch({ devMode: v })}
+              ariaLabel="Dev Mode"
+            />
+          </div>
+          {!settings.devMode && (
+            <div className="row" style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+              <span className="row-label row-dev">Auth Token (dev)</span>
+              <input
+                type="text"
+                className="select"
+                style={{ width: "100%", boxSizing: "border-box" }}
+                value={settings.authToken}
+                placeholder="eyJ... (dev-token)"
+                onChange={(e) => patch({ authToken: e.target.value })}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
