@@ -23,11 +23,5 @@ export default defineConfig({
   build: {
     // 확장 프로그램 디버깅을 위해 소스맵 유지
     sourcemap: true,
-    rollupOptions: {
-      input: {
-        popup: "src/popup/index.html",
-        offscreen: "src/offscreen/index.html",
-      },
-    },
   },
 });
