@@ -22,7 +22,19 @@
       "Bash(npx tsc *)",
       "Bash(echo \"=== exit: $? ===\")",
       "Bash(node -e \"const m=require\\('./dist/manifest.json'\\); console.log\\('matches:', JSON.stringify\\(m.content_scripts?.map\\(c=>c.matches\\)\\)\\); console.log\\('host_permissions:', JSON.stringify\\(m.host_permissions\\)\\); console.log\\('permissions:', JSON.stringify\\(m.permissions\\)\\); console.log\\('js:', JSON.stringify\\(m.content_scripts?.map\\(c=>c.js\\)\\)\\);\")",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(git commit -m ' *)",
+      "Bash(git commit *)",
+      "Bash(git reset *)",
+      "Bash(git filter-branch *)",
+      "Bash(git stash *)",
+      "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch -f --msg-filter 'sed -E \"s/^\\(feat|fix\\)\\\\\\([0-9]+\\\\\\):/\\\\1:/; s/ \\\\\\(Session [0-9]+\\\\\\)//\"' origin/main..HEAD)",
+      "Bash(git push *)",
+      "Bash(git pull *)",
+      "Bash(npx vite *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(kill 19034 19056 20827 20850 20824 19030)",
+      "Bash(xargs ls -la)"
     ]
   }
 }
