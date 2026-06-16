@@ -333,6 +333,7 @@ function SubtitleReadyView({
 const STEP_LABELS: Record<string, string> = {
   fetch: "Fetching captions…",
   translate: "AI Translating…",
+  cues_loading: "Applying subtitles…",
 };
 
 export function GeneratingView({
@@ -354,7 +355,9 @@ export function GeneratingView({
       </div>
       <div className="progress-meta">
         <span>{pct}%</span>
-        <span>{t.generatingEta(status.etaSeconds)}</span>
+        {status.step !== "cues_loading" && (
+          <span>{t.generatingEta(status.etaSeconds)}</span>
+        )}
       </div>
       <div className="state-note">{t.generatingNote}</div>
     </div>

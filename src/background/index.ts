@@ -17,6 +17,7 @@ import {
   completeLocalJob,
   removeAvailable,
   isLocalJobDone,
+  markCuesReady,
 } from "./generationStore";
 import { StreamingSession } from "@/api/wsClient";
 import { MockStreamingSession } from "@/api/mockStreamingSession";
@@ -207,6 +208,10 @@ async function onGenerationComplete(
   videoId: string,
 ): Promise<void> {
   await broadcastReady(platform, videoId);
+  // 폴백: 60초 내 스트리밍 완료가 없으면 자동 표시 (탭 닫힘 등 엣지 케이스)
+  setTimeout(() => {
+    void markCuesReady(platform, videoId);
+  }, 60_000);
 }
 
 /** cues 로딩 완료 시 Chrome 알림 발동 */
@@ -470,6 +475,7 @@ async function handleStartStreaming(
         (totalCues) => {
           console.info(`[Kaptik BG YT] 스트리밍 완료 tabId=${tabId} totalCues=${totalCues}`);
           streamingSessions.delete(tabId);
+          void markCuesReady("youtube", videoId);
           const doneMsg: BroadcastMessage = { type: "CUES_ALL_READY", platform: "youtube", videoId };
           chrome.tabs.sendMessage(tabId, doneMsg).catch(() => {});
           void notifySubtitlesReady("youtube", videoId);

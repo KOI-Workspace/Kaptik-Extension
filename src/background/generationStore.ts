@@ -15,6 +15,7 @@ const DEFAULT_DURATION_MS = 12_000;
 
 const JOBS_KEY = "kaptik:jobs";
 const DONE_KEY = "kaptik:available";
+const CUES_KEY = "kaptik:cues_ready";
 
 interface Job {
   platform: Platform;
@@ -45,6 +46,24 @@ async function readDone(): Promise<string[]> {
   return (r[DONE_KEY] ?? []) as string[];
 }
 
+async function readCuesReady(): Promise<string[]> {
+  const r = await chrome.storage.local.get(CUES_KEY);
+  return (r[CUES_KEY] ?? []) as string[];
+}
+
+export async function markCuesReady(platform: Platform, videoId: string): Promise<void> {
+  const key = keyOf(platform, videoId);
+  const list = await readCuesReady();
+  if (list.includes(key)) return;
+  list.push(key);
+  await chrome.storage.local.set({ [CUES_KEY]: list });
+}
+
+export async function areCuesReady(platform: Platform, videoId: string): Promise<boolean> {
+  const list = await readCuesReady();
+  return list.includes(keyOf(platform, videoId));
+}
+
 /** 부작용 없이 완료 여부만 확인한다 (완료 전이 감지용). */
 export async function isLocalJobDone(platform: Platform, videoId: string): Promise<boolean> {
   const done = await readDone();
@@ -72,7 +91,11 @@ export async function getLocalStatus(
 ): Promise<SubtitleStatus> {
   const key = keyOf(platform, videoId);
   const done = await readDone();
-  if (done.includes(key)) return { state: "available" };
+  if (done.includes(key)) {
+    const cuesReady = await areCuesReady(platform, videoId);
+    if (cuesReady) return { state: "available" };
+    return { state: "generating", progress: 0.99, etaSeconds: 0, step: "cues_loading" };
+  }
 
   const jobs = await readJobs();
   const job = jobs[key];
@@ -138,11 +161,11 @@ export async function completeLocalJob(
 
 export async function removeAvailable(platform: Platform, videoId: string): Promise<void> {
   const key = keyOf(platform, videoId);
-  const [done, jobs] = await Promise.all([readDone(), readJobs()]);
-  const newDone = done.filter((k) => k !== key);
+  const [done, jobs, cues] = await Promise.all([readDone(), readJobs(), readCuesReady()]);
   delete jobs[key];
   await Promise.all([
-    chrome.storage.local.set({ [DONE_KEY]: newDone }),
+    chrome.storage.local.set({ [DONE_KEY]: done.filter((k) => k !== key) }),
     writeJobs(jobs),
+    chrome.storage.local.set({ [CUES_KEY]: cues.filter((k) => k !== key) }),
   ]);
 }
