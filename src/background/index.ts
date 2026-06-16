@@ -38,7 +38,7 @@ interface LiveSession {
   captureStartVideoTime: number;
   captureStartWallTime: number;
   cues: SubtitleCue[];
-  pending: Map<number, { text_ko: string; speaker: string }>;
+  pending: Map<number, { text_ko: string; speaker: string; cached: boolean }>;
   seekSent: boolean;
   seekTimer: ReturnType<typeof setTimeout> | null;
 }
@@ -250,6 +250,7 @@ async function handleStartLiveStreaming(
   videoId: string,
   captureStartVideoTime: number,
   videoTitle?: string,
+  videoUrl?: string,
 ): Promise<ResponseMessage> {
   const settings = await getSettings();
   const { serverUrl, language, devMode } = settings;
@@ -304,6 +305,7 @@ async function handleStartLiveStreaming(
     authToken,
     targetLang: language,
     videoTitle,
+    videoUrl,
   }).catch(() => {});
 
   // 30초 후 아직 seek를 보내지 않았으면 SEEK_AND_SHOW 발송
@@ -359,6 +361,7 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
     session.pending.set(ts, {
       text_ko: String(data.text_ko ?? ""),
       speaker: String(data.speaker ?? ""),
+      cached: Boolean(data.cached),
     });
     return;
   }
@@ -369,7 +372,8 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
     if (!p) return;
     session.pending.delete(ts);
 
-    const start = ts / 1000 + offset;
+    // cached cue는 룸 생성 시점 기준 절대 ts이므로 captureStartVideoTime offset 적용 안 함
+    const start = p.cached ? ts / 1000 : ts / 1000 + offset;
     const cue: SubtitleCue = {
       start,
       end: start + 6,
@@ -556,6 +560,7 @@ chrome.runtime.onMessage.addListener(
               req.videoId,
               req.captureStartVideoTime,
               req.videoTitle,
+              req.videoUrl,
             );
           }
           case "STOP_LIVE_STREAMING": {

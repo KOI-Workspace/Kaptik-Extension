@@ -7,7 +7,7 @@ export type RequestMessage =
   | { type: "START_GENERATION"; platform: Platform; videoId: string }
   | { type: "START_STREAMING"; youtubeUrl: string; seekSec: number; serverUrl: string; keepCues?: boolean }
   | { type: "STOP_STREAMING" }
-  | { type: "START_LIVE_STREAMING"; platform: Platform; videoId: string; captureStartVideoTime: number; videoTitle?: string }
+  | { type: "START_LIVE_STREAMING"; platform: Platform; videoId: string; captureStartVideoTime: number; videoTitle?: string; videoUrl?: string }
   | { type: "STOP_LIVE_STREAMING" };
 
 /** background → 요청자 응답 메시지 */

@@ -260,6 +260,7 @@ class SubtitleController {
             videoId,
             captureStartVideoTime: Math.floor(video.currentTime),
             videoTitle: document.title,
+            videoUrl: location.href,
           }).catch((err: unknown) =>
             console.error("[Kaptik] START_LIVE_STREAMING 실패:", err),
           );

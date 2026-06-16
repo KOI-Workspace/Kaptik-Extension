@@ -13,6 +13,7 @@ interface CaptureTabMsg {
   authToken: string;
   targetLang: string;
   videoTitle?: string;
+  videoUrl?: string;
 }
 
 let activeStream: MediaStream | null = null;
@@ -59,6 +60,7 @@ async function startCapture(msg: CaptureTabMsg): Promise<void> {
         video_type: "live",
         target_lang: msg.targetLang,
         video_title: msg.videoTitle ?? null,
+        video_url: msg.videoUrl ?? null,
       }),
     );
 
