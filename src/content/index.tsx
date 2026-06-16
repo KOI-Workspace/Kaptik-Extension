@@ -121,10 +121,10 @@ class SubtitleController {
             [message.member.id]: message.member,
             [message.member.name]: message.member,
           });
-          console.info(`[Kaptik] 화자 식별 반영: ${message.speakerId} → ${message.member.name}`);
+          console.info(`[Kaptik Live] 화자 식별 반영: ${message.speakerId} → ${message.member.name}`);
         }
       } else if (message?.type === "STREAMING_ERROR") {
-        console.error("[Kaptik] 스트리밍 오류:", message.message);
+        console.error("[Kaptik YT] 스트리밍 오류:", message.message);
         if (this.mounted && !this.mounted.isLive) {
           this.mounted.handle.updateCues([]);
           this.mounted.lastVodCues = [];
@@ -134,7 +134,7 @@ class SubtitleController {
         const video = this.mounted?.video;
         if (video) {
           video.currentTime = Math.max(0, video.currentTime - message.seekSec);
-          console.info(`[Kaptik] 라이브 싱크 seek -${message.seekSec}s → ${video.currentTime.toFixed(1)}s`);
+          console.info(`[Kaptik Live] 라이브 싱크 seek -${message.seekSec}s → ${video.currentTime.toFixed(1)}s`);
         }
       }
     });
@@ -262,9 +262,9 @@ class SubtitleController {
             videoTitle: document.title,
             videoUrl: location.href,
           }).catch((err: unknown) =>
-            console.error("[Kaptik] START_LIVE_STREAMING 실패:", err),
+            console.error("[Kaptik Live] START_LIVE_STREAMING 실패:", err),
           );
-          console.info(`[Kaptik] 라이브 스트리밍 시작 (${videoId})`);
+          console.info(`[Kaptik Live] 라이브 스트리밍 시작 (${videoId})`);
         };
         this.startStreamingFn = () => { /* 라이브는 재시작 없음 */ };
 
@@ -294,8 +294,8 @@ class SubtitleController {
             seekSec,
             serverUrl: this.settings.serverUrl,
             keepCues,
-          }).catch((err: unknown) => console.error("[Kaptik] START_STREAMING 실패:", err));
-          console.info(`[Kaptik] 스트리밍 요청 (${videoId}, seek=${seekSec}s, keepCues=${keepCues})`);
+          }).catch((err: unknown) => console.error("[Kaptik YT] START_STREAMING 실패:", err));
+          console.info(`[Kaptik YT] 스트리밍 요청 (${videoId}, seek=${seekSec}s, keepCues=${keepCues})`);
         };
         this.startStreamingFn = startStreaming;
 
@@ -340,7 +340,7 @@ class SubtitleController {
     this.speakerIdentifiedOnce = false;
     this.speakerIdTimer = window.setTimeout(() => {
       if (!this.speakerIdentifiedOnce) {
-        console.info("[Kaptik] 30초 내 화자 식별 없음 — 화자 표시 비활성화");
+        console.info("[Kaptik Live] 30초 내 화자 식별 없음 — 화자 표시 비활성화");
       }
     }, 30_000);
   }
