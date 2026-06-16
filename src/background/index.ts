@@ -116,6 +116,15 @@ async function handleStartGeneration(
   platform: Platform,
   videoId: string,
 ): Promise<ResponseMessage> {
+  // 이미 진행 중이거나 완료된 경우 중복 job 생성 방지
+  const currentStatus = await getLocalStatus(platform, videoId);
+  if (currentStatus.state === "generating") {
+    return { type: "GENERATION_STARTED", etaSeconds: currentStatus.etaSeconds ?? 0 };
+  }
+  if (currentStatus.state === "available") {
+    return { type: "GENERATION_STARTED", etaSeconds: 0 };
+  }
+
   const settings = await getSettings();
   const { serverUrl, language, devMode } = settings;
   const authToken = devMode ? "dev" : settings.authToken;
