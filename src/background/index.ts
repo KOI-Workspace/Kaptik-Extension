@@ -3,7 +3,7 @@ import type {
   RequestMessage,
   ResponseMessage,
 } from "@/shared/messaging";
-import type { Platform, SubtitleCue, SubtitleTrack } from "@/types/subtitle";
+import type { Member, Platform, SubtitleCue, SubtitleTrack } from "@/types/subtitle";
 import { resolveMemberByName } from "@/shared/members";
 import {
   fetchSubtitleTrack,
@@ -15,15 +15,20 @@ import {
   startLocalJob,
   updateJobProgress,
   completeLocalJob,
+  isLocalJobDone,
 } from "./generationStore";
 import { StreamingSession } from "@/api/wsClient";
+import { MockStreamingSession } from "@/api/mockStreamingSession";
 import { getYtCookies, getPoToken } from "./ytCredentials";
 
 /** 자막 트랙 메모리 캐시 (서비스 워커 생존 동안 유효) */
 const trackCache = new Map<string, SubtitleTrack>();
 
-/** tabId → 현재 스트리밍 세션 + 누적 cue 배열 */
-const streamingSessions = new Map<number, { session: StreamingSession; cues: SubtitleCue[] }>();
+/** tabId → 현재 스트리밍 세션 + 누적 cue 배열 (devMode면 MockStreamingSession) */
+const streamingSessions = new Map<
+  number,
+  { session: StreamingSession | MockStreamingSession; cues: SubtitleCue[] }
+>();
 
 /** tabId → 라이브 스트리밍 세션 상태 */
 interface LiveSession {
@@ -97,7 +102,14 @@ async function handleGetStatus(
   videoId: string,
 ): Promise<ResponseMessage> {
   // 폴백: 로컬 시뮬레이션 (실제 백엔드는 ws-job으로 진행 추적)
+  const wasDone = await isLocalJobDone(platform, videoId);
   const status = await getLocalStatus(platform, videoId);
+  // getLocalStatus 내부에서 막 완료/실패 전이됐는데, 전이 핸들러(setTimeout 등)가
+  // 같은 타이밍에 먼저 가져가 버려 SUBTITLES_READY를 못 보내는 경쟁을 방지
+  if (!wasDone) {
+    if (status.state === "available") void onGenerationComplete(platform, videoId);
+    else if (status.state === "failed") void broadcastReady(platform, videoId);
+  }
   return { type: "STATUS_OK", status };
 }
 
@@ -109,6 +121,17 @@ async function handleStartGeneration(
   const settings = await getSettings();
   const { serverUrl, language, devMode } = settings;
   const authToken = devMode ? "dev" : settings.authToken;
+
+  // devMode: 백엔드 없이 기존 mock 자막 데이터로 생성 흐름을 재현 (화면 상태 확인용)
+  if (devMode) {
+    const etaSeconds = await startLocalJob(platform, videoId);
+    setTimeout(() => {
+      void completeLocalJob(platform, videoId).then((becameDone) => {
+        if (becameDone) void onGenerationComplete(platform, videoId);
+      });
+    }, etaSeconds * 1000);
+    return { type: "GENERATION_STARTED", etaSeconds };
+  }
 
   // YouTube만 지원 (타 플랫폼은 라이브 스트리밍 경로)
   const url = `https://www.youtube.com/watch?v=${videoId}`;
@@ -411,43 +434,50 @@ async function handleStartStreaming(
 
   const cues: SubtitleCue[] = keepCues ? (prev?.cues ?? []) : [];
 
-  const session = new StreamingSession(
-    youtubeUrl,
-    seekSec,
-    serverUrl,
-    authToken,
-    language,
-    (newCue) => {
-      cues.push(newCue);
-      cues.sort((a, b) => a.start - b.start);
-      for (let i = 0; i < cues.length - 1; i++) {
-        cues[i] = { ...cues[i], end: Math.min(cues[i].end, cues[i + 1].start - 0.1) };
-      }
-      console.info(`[Kaptik BG] CUE #${cues.length} → tab ${tabId}: "${newCue.text.en}" (t=${newCue.start.toFixed(1)}s)`);
-      const msg: BroadcastMessage = { type: "CUE_READY", cues: [...cues] };
-      chrome.tabs.sendMessage(tabId, msg).catch((e: unknown) => {
-        console.warn(`[Kaptik BG] sendMessage 실패 tabId=${tabId}:`, e);
-      });
-    },
-    (err) => {
-      console.error(`[Kaptik BG] 스트리밍 오류 tabId=${tabId}:`, err);
-      const msg: BroadcastMessage = { type: "STREAMING_ERROR", message: err };
-      chrome.tabs.sendMessage(tabId, msg).catch(() => {});
-    },
-    (totalCues) => {
-      console.info(`[Kaptik BG] 스트리밍 완료 tabId=${tabId} totalCues=${totalCues}`);
-      void broadcastReady("youtube", videoId);
-    },
-    (speakerId, name, member) => {
-      console.info(`[Kaptik BG] 화자 식별 → tab ${tabId}: ${speakerId} = ${member.name}`);
-      const msg: BroadcastMessage = { type: "SPEAKER_IDENTIFIED", speakerId, name, member };
-      chrome.tabs.sendMessage(tabId, msg).catch(() => {});
-    },
-  );
+  const onCueReady = (newCue: SubtitleCue) => {
+    cues.push(newCue);
+    cues.sort((a, b) => a.start - b.start);
+    for (let i = 0; i < cues.length - 1; i++) {
+      cues[i] = { ...cues[i], end: Math.min(cues[i].end, cues[i + 1].start - 0.1) };
+    }
+    console.info(`[Kaptik BG] CUE #${cues.length} → tab ${tabId}: "${newCue.text.en}" (t=${newCue.start.toFixed(1)}s)`);
+    const msg: BroadcastMessage = { type: "CUE_READY", cues: [...cues] };
+    chrome.tabs.sendMessage(tabId, msg).catch((e: unknown) => {
+      console.warn(`[Kaptik BG] sendMessage 실패 tabId=${tabId}:`, e);
+    });
+  };
+
+  const onSpeakerIdentified = (speakerId: string, name: string, member: Member) => {
+    console.info(`[Kaptik BG] 화자 식별 → tab ${tabId}: ${speakerId} = ${member.name}`);
+    const msg: BroadcastMessage = { type: "SPEAKER_IDENTIFIED", speakerId, name, member };
+    chrome.tabs.sendMessage(tabId, msg).catch(() => {});
+  };
+
+  // devMode: 백엔드 없이 기존 mock 대화로 스트리밍을 재현 (화면 상태 확인용)
+  const session: StreamingSession | MockStreamingSession = devMode
+    ? new MockStreamingSession(seekSec, onCueReady, onSpeakerIdentified)
+    : new StreamingSession(
+        youtubeUrl,
+        seekSec,
+        serverUrl,
+        authToken,
+        language,
+        onCueReady,
+        (err) => {
+          console.error(`[Kaptik BG] 스트리밍 오류 tabId=${tabId}:`, err);
+          const msg: BroadcastMessage = { type: "STREAMING_ERROR", message: err };
+          chrome.tabs.sendMessage(tabId, msg).catch(() => {});
+        },
+        (totalCues) => {
+          console.info(`[Kaptik BG] 스트리밍 완료 tabId=${tabId} totalCues=${totalCues}`);
+          void broadcastReady("youtube", videoId);
+        },
+        onSpeakerIdentified,
+      );
 
   streamingSessions.set(tabId, { session, cues });
   session.connect();
-  console.info(`[Kaptik BG] 스트리밍 시작 tabId=${tabId} seek=${seekSec}s`);
+  console.info(`[Kaptik BG] 스트리밍 시작 tabId=${tabId} seek=${seekSec}s${devMode ? " (mock)" : ""}`);
   return { type: "STREAMING_STARTED" };
 }
 

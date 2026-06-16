@@ -84,12 +84,13 @@ export function resolveMember(
 ): Member | null {
   if (!cue.speakerId) return null;
   const found = track.members[cue.speakerId];
-  if (found) return found;
-  return {
+  const member = found ?? {
     id: cue.speakerId,
     name: cue.speakerId,
     color: hashColor(cue.speakerId),
   };
+  // 화자 식별 불가 영상: 색상(아바타 링)으로만 구분하고 이름/이니셜은 비공개
+  return track.speakerIdentified === false ? { ...member, name: "" } : member;
 }
 
 /** 아바타 이니셜 (이미지 없을 때 사용) */

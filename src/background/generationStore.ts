@@ -45,6 +45,12 @@ async function readDone(): Promise<string[]> {
   return (r[DONE_KEY] ?? []) as string[];
 }
 
+/** 부작용 없이 완료 여부만 확인한다 (완료 전이 감지용). */
+export async function isLocalJobDone(platform: Platform, videoId: string): Promise<boolean> {
+  const done = await readDone();
+  return done.includes(keyOf(platform, videoId));
+}
+
 async function markDone(key: string): Promise<boolean> {
   const done = await readDone();
   if (done.includes(key)) return false; // 이미 완료 처리됨

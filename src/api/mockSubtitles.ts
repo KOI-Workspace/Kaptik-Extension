@@ -5,7 +5,7 @@ import { DEFAULT_MEMBERS } from "@/shared/members";
  * 백엔드(Kaptik API) 개발 전까지 사용하는 임시 자막 데이터.
  * 실제 API 연동이 붙으면 client.ts 의 fallback 으로만 동작한다.
  */
-const MOCK_CUES: SubtitleCue[] = [
+export const MOCK_CUES: SubtitleCue[] = [
   {
     start: 0,
     end: 3.5,

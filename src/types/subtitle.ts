@@ -65,6 +65,10 @@ export interface SubtitleTrack {
   members: Record<string, Member>;
   /** 라이브 영상 여부 */
   isLive?: boolean;
+  /** 화자 이름 식별 가능 여부 — false면 색상으로만 구분하고 이름/이니셜은 비공개 처리 */
+  speakerIdentified?: boolean;
+  /** 자막 생성 자체가 불가능한 사유 (예: "not_korean") — 있으면 패널에 안내만 표시 */
+  error?: string;
 }
 
 /**
@@ -72,10 +76,10 @@ export interface SubtitleTrack {
  * - available: 자막 준비됨 → 바로 볼 수 있음
  * - none: 아직 번역 없음 → 생성 필요
  * - generating: 생성 중 (남은 시간/진행률 제공)
- * - failed: 생성 실패
+ * - failed: 생성 실패 (reason="not_korean"이면 한국어 영상이 아니라 생성 불가)
  */
 export type SubtitleStatus =
-  | { state: "available"; isLive?: boolean }
+  | { state: "available"; isLive?: boolean; speakerIdentifiable?: boolean }
   | { state: "none" }
   | { state: "generating"; etaSeconds: number; progress: number; step?: string }
   | { state: "failed"; reason?: string };

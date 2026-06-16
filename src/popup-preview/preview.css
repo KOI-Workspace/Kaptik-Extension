@@ -1,0 +1,96 @@
+html, body {
+  margin: 0;
+  background: #0d0d0d;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
+
+.preview-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.preview-nav {
+  width: 270px;
+  flex: 0 0 auto;
+  padding: 20px 14px;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  overflow-y: auto;
+  height: 100vh;
+  box-sizing: border-box;
+}
+
+.preview-nav h1 {
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 4px;
+}
+
+.preview-nav p {
+  font-size: 11px;
+  color: #7d7d7d;
+  margin: 0 0 16px;
+}
+
+.preview-nav-group {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #7d7d7d;
+  margin: 16px 0 6px;
+}
+
+.preview-nav-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border: none;
+  border-radius: 8px;
+  background: #1a1a1a;
+  color: #d8d8d8;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.preview-nav-btn:hover {
+  background: #232323;
+}
+
+.preview-nav-btn.is-active {
+  background: #8353eb;
+  color: #fff;
+}
+
+.preview-stage {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 24px;
+}
+
+.preview-frame-label {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #9a9a9a;
+  margin-bottom: 10px;
+}
+
+.preview-frame-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.preview-frame {
+  width: 320px;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}

@@ -53,9 +53,11 @@ export function CenterSubtitle({
               key={cue.start}
               className={"kaptik-center-line" + (isActive ? " is-active" : "")}
             >
-              {member && <Avatar member={member} size={26 * settings.fontScale} />}
+              {settings.showSpeaker && member && (
+                <Avatar member={member} size={26 * settings.fontScale} />
+              )}
               <div className="kaptik-center-body">
-                {settings.showSpeaker && member && (
+                {settings.showSpeaker && member?.name && (
                   <span
                     className="kaptik-center-name"
                     style={{ color: member.color }}

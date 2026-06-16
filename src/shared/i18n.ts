@@ -38,6 +38,12 @@ export interface Messages {
   generatingNote: string;
   failedTitle: string;
   retryBtn: string;
+  cannotCreateTitle: string;
+  cannotCreateNotKoreanDesc: string;
+  loginTitle: string;
+  loginDesc: string;
+  loginWithGoogle: string;
+  logoutBtn: string;
   readyTitle: string;
   viewSubtitlesBtn: string;
   // 설정 항목
@@ -99,6 +105,12 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     generatingNote: "You can close this popup. We'll notify you when it's done.",
     failedTitle: "Subtitle generation failed",
     retryBtn: "Try again",
+    cannotCreateTitle: "Cannot create subtitles",
+    cannotCreateNotKoreanDesc: "This video isn't in Korean, so subtitles can't be generated for it.",
+    loginTitle: "Sign in to Kaptik",
+    loginDesc: "Sign in to sync your subtitle settings and plan.",
+    loginWithGoogle: "Continue with Google",
+    logoutBtn: "Log out",
     readyTitle: "Subtitles are ready",
     viewSubtitlesBtn: "View subtitles",
     langLabel: "Subtitle language",
@@ -153,6 +165,12 @@ const MESSAGES: Record<UiLanguage, Messages> = {
       "このポップアップを閉じても大丈夫です。完了したら通知します。",
     failedTitle: "字幕の生成に失敗しました",
     retryBtn: "再試行",
+    cannotCreateTitle: "字幕を作成できません",
+    cannotCreateNotKoreanDesc: "この動画は韓国語ではないため、字幕を生成できません。",
+    loginTitle: "Kaptikにログイン",
+    loginDesc: "字幕設定とプランを同期するにはログインしてください。",
+    loginWithGoogle: "Googleで続行",
+    logoutBtn: "ログアウト",
     readyTitle: "字幕の準備ができました",
     viewSubtitlesBtn: "字幕を見る",
     langLabel: "字幕の言語",
@@ -205,6 +223,12 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     generatingNote: "可以关闭此弹窗。完成后会通知你。",
     failedTitle: "字幕生成失败",
     retryBtn: "重试",
+    cannotCreateTitle: "无法生成字幕",
+    cannotCreateNotKoreanDesc: "该视频不是韩语视频，无法生成字幕。",
+    loginTitle: "登录 Kaptik",
+    loginDesc: "登录后可同步字幕设置和套餐。",
+    loginWithGoogle: "继续使用 Google 登录",
+    logoutBtn: "退出登录",
     readyTitle: "字幕已准备好",
     viewSubtitlesBtn: "查看字幕",
     langLabel: "字幕语言",
@@ -259,6 +283,12 @@ const MESSAGES: Record<UiLanguage, Messages> = {
       "Kamu boleh menutup popup ini. Kami akan memberi tahu saat selesai.",
     failedTitle: "Gagal membuat subtitle",
     retryBtn: "Coba lagi",
+    cannotCreateTitle: "Subtitle tidak dapat dibuat",
+    cannotCreateNotKoreanDesc: "Video ini bukan berbahasa Korea, jadi subtitle tidak dapat dibuat.",
+    loginTitle: "Masuk ke Kaptik",
+    loginDesc: "Masuk untuk menyinkronkan pengaturan subtitle dan paket kamu.",
+    loginWithGoogle: "Lanjutkan dengan Google",
+    logoutBtn: "Keluar",
     readyTitle: "Subtitle sudah siap",
     viewSubtitlesBtn: "Lihat subtitle",
     langLabel: "Bahasa subtitle",

@@ -42,6 +42,8 @@ export interface KaptikSettings {
   authToken: string;
   /** 개발 모드 — true이면 authToken 대신 "dev" 토큰 전송 */
   devMode: boolean;
+  /** 로그인 여부 — false면 팝업에 로그인 화면을 보여준다 */
+  loggedIn: boolean;
 }
 
 /** 유료 등급(basic/pro) 여부 — 미결제(free)와 결제 후를 구분 */
@@ -74,6 +76,7 @@ export const DEFAULT_SETTINGS: KaptikSettings = {
   serverUrl: "ws://localhost:8000",
   authToken: "",
   devMode: false,
+  loggedIn: true,
 };
 
 /** 결제/업그레이드 페이지 URL (백엔드 연동 전 placeholder) */

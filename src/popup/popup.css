@@ -96,10 +96,86 @@ body {
 
 /* ── 결제 후 계정 영역 (요금제 칩 + 프로필 아바타, 서로 분리) ── */
 .account {
+  position: relative; /* 로그아웃 메뉴 앵커 */
   display: inline-flex;
   align-items: center;
   gap: 7px;
   white-space: nowrap;
+}
+
+/* 프로필 아바타 클릭 시 펼쳐지는 로그아웃 메뉴 */
+.account-menu {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  min-width: 110px;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  z-index: 10;
+}
+
+.account-menu-item {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.account-menu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── 로그인 화면 ── */
+.login-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 40px 16px 28px;
+}
+
+.login-logo {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  margin-bottom: 2px;
+}
+
+.login-logo span {
+  color: var(--color-brand);
+}
+
+.login-tagline {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  margin-bottom: 20px;
+}
+
+.login-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.login-desc {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  max-width: 250px;
+  margin-bottom: 8px;
 }
 
 /* 요금제 칩 — 등급을 나타내는 작은 배지 */

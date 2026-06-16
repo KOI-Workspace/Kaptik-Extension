@@ -181,6 +181,33 @@ class SubtitleController {
         return;
       }
 
+      // VOD는 생성이 끝나기 전(none/generating)에는 자막 UI를 띄우지 않는다.
+      // 생성이 끝나면(완료/실패) SUBTITLES_READY 브로드캐스트가 evaluate()를 다시 호출한다.
+      let speakerIdentified = true;
+      if (!isLive) {
+        const vodStatus = await requestStatus(this.adapter.platform, videoId);
+        if (vodStatus?.state === "failed") {
+          // 생성 자체가 불가능한 영상(예: 한국어 아님) → 패널에 안내만, 가운데 자막은 없음
+          const errorTrack: SubtitleTrack = {
+            platform: this.adapter.platform,
+            videoId,
+            cues: [],
+            availableLanguages: ["ko", "en", "ja", "zh-CN", "id"],
+            members: {},
+            error: vodStatus.reason,
+          };
+          const handle = mountDisplay(container, panelContainer, video, errorTrack, false);
+          this.mounted = { videoId, panelContainer, handle, video };
+          console.info(`[Kaptik] 자막 생성 불가 (${videoId}): ${vodStatus.reason ?? "unknown"}`);
+          return;
+        }
+        if (vodStatus?.state !== "available") {
+          this.teardown();
+          return;
+        }
+        speakerIdentified = vodStatus.speakerIdentifiable ?? true;
+      }
+
       // 빈 트랙으로 먼저 마운트한 뒤 스트리밍으로 cue를 채운다
       const emptyTrack: SubtitleTrack = {
         platform: this.adapter.platform,
@@ -188,6 +215,7 @@ class SubtitleController {
         cues: [],
         availableLanguages: ["ko", "en", "ja", "zh-CN", "id"],
         members: {},
+        speakerIdentified,
       };
       const handle = mountDisplay(container, panelContainer, video, emptyTrack, isLive);
       this.mounted = { videoId, panelContainer, handle, video };
@@ -240,10 +268,8 @@ class SubtitleController {
         };
         this.startStreamingFn = startStreaming;
 
-        const vodStatus = await requestStatus(this.adapter.platform, videoId);
-        if (vodStatus?.state === "available") {
-          startStreaming(Math.floor(video.currentTime));
-        }
+        // 위에서 이미 available 확인했으므로 바로 시작
+        startStreaming(Math.floor(video.currentTime));
 
         let seekTimer: ReturnType<typeof setTimeout> | undefined;
         // VOD는 cue가 DB에 사전 계산돼 있으므로 일시정지 중에도 WS 유지.
