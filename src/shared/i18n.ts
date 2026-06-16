@@ -39,6 +39,7 @@ export interface Messages {
   failedTitle: string;
   retryBtn: string;
   readyTitle: string;
+  readyDesc: string;
   viewSubtitlesBtn: string;
   // 설정 항목
   langLabel: string;
@@ -100,6 +101,7 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     failedTitle: "Subtitle generation failed",
     retryBtn: "Try again",
     readyTitle: "Subtitles are ready",
+    readyDesc: "Tap below to configure and view your subtitles.",
     viewSubtitlesBtn: "View subtitles",
     langLabel: "Subtitle language",
     speakerLabel: "Speaker Identification",
@@ -154,6 +156,7 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     failedTitle: "字幕の生成に失敗しました",
     retryBtn: "再試行",
     readyTitle: "字幕の準備ができました",
+    readyDesc: "下のボタンをタップして字幕を設定・表示してください。",
     viewSubtitlesBtn: "字幕を見る",
     langLabel: "字幕の言語",
     speakerLabel: "話者ラベル",
@@ -206,6 +209,7 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     failedTitle: "字幕生成失败",
     retryBtn: "重试",
     readyTitle: "字幕已准备好",
+    readyDesc: "点击下方按钮来配置和查看字幕。",
     viewSubtitlesBtn: "查看字幕",
     langLabel: "字幕语言",
     speakerLabel: "角色标签",
@@ -260,6 +264,7 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     failedTitle: "Gagal membuat subtitle",
     retryBtn: "Coba lagi",
     readyTitle: "Subtitle sudah siap",
+    readyDesc: "Ketuk tombol di bawah untuk mengatur dan melihat subtitle.",
     viewSubtitlesBtn: "Lihat subtitle",
     langLabel: "Bahasa subtitle",
     speakerLabel: "Label pembicara",
