@@ -7,51 +7,52 @@ import pkg from "./package.json";
  * - background: 자막 데이터 요청 중계 (Kaptik API)
  * - action popup: 자막 설정 UI
  */
-export default defineManifest({
-  manifest_version: 3,
-  name: "Kaptik – K-pop 라이브 자막",
-  version: pkg.version,
-  description: pkg.description,
-  icons: {
-    "16": "icons/icon-16.png",
-    "32": "icons/icon-32.png",
-    "48": "icons/icon-48.png",
-    "128": "icons/icon-128.png",
-  },
-  action: {
-    default_title: "Kaptik 자막 설정",
-    default_popup: "src/popup/index.html",
-    default_icon: {
+export default function getManifest(mode: string) {
+  const isDev = mode !== "production";
+  return defineManifest({
+    manifest_version: 3,
+    name: "Kaptik – K-pop 라이브 자막",
+    version: pkg.version,
+    description: pkg.description,
+    icons: {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",
       "48": "icons/icon-48.png",
       "128": "icons/icon-128.png",
     },
-  },
-  background: {
-    service_worker: "src/background/index.ts",
-    type: "module",
-  },
-  content_scripts: [
-    {
-      matches: [
-        "*://*.youtube.com/*",
-        "*://*.weverse.io/*",
-        "*://*.instagram.com/*",
-      ],
-      js: ["src/content/index.tsx"],
-      run_at: "document_idle",
-      all_frames: false,
+    action: {
+      default_title: "Kaptik 자막 설정",
+      default_popup: "src/popup/index.html",
+      default_icon: {
+        "16": "icons/icon-16.png",
+        "32": "icons/icon-32.png",
+        "48": "icons/icon-48.png",
+        "128": "icons/icon-128.png",
+      },
     },
-  ],
-  permissions: ["storage", "notifications", "tabs", "cookies", "tabCapture", "offscreen"],
-  host_permissions: [
-    "*://*.youtube.com/*",
-    "*://*.weverse.io/*",
-    "*://*.instagram.com/*",
-    // Kaptik 백엔드 (개발 중) — 실제 도메인 확정 시 교체
-    "https://api.kaptik.app/*",
-    // 로컬 스트리밍 서버 (ws:// 연결은 http:// prefix로 권한 부여)
-    "http://localhost:8000/*",
-  ],
-});
+    background: {
+      service_worker: "src/background/index.ts",
+      type: "module",
+    },
+    content_scripts: [
+      {
+        matches: [
+          "*://*.youtube.com/*",
+          "*://*.weverse.io/*",
+          "*://*.instagram.com/*",
+        ],
+        js: ["src/content/index.tsx"],
+        run_at: "document_idle",
+        all_frames: false,
+      },
+    ],
+    permissions: ["storage", "notifications", "tabs", "cookies", "tabCapture", "offscreen"],
+    host_permissions: [
+      "*://*.youtube.com/*",
+      "*://*.weverse.io/*",
+      "*://*.instagram.com/*",
+      "https://kaptik.p-e.kr/*",
+      ...(isDev ? ["http://localhost:8000/*"] : []),
+    ],
+  });
+}

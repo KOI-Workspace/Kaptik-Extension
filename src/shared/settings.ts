@@ -73,7 +73,7 @@ export const DEFAULT_SETTINGS: KaptikSettings = {
   notifyOnReady: true,
   plan: "free",
   profileName: "Jiwoo Kim",
-  serverUrl: "ws://localhost:8000",
+  serverUrl: import.meta.env.VITE_SERVER_URL ?? "ws://localhost:8000",
   authToken: "",
   devMode: false,
   loggedIn: true,
