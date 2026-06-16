@@ -74,7 +74,7 @@ export const DEFAULT_SETTINGS: KaptikSettings = {
   plan: "free",
   profileName: "Jiwoo Kim",
   serverUrl: import.meta.env.VITE_SERVER_URL ?? "ws://localhost:8000",
-  authToken: "",
+  authToken: import.meta.env.VITE_AUTH_TOKEN ?? "",
   devMode: false,
   loggedIn: true,
 };
