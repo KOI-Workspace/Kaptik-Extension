@@ -178,13 +178,13 @@ function openJobSocket(
       if (msg.type === "progress") {
         const step = String(msg.step ?? "");
         const pct = Number(msg.pct ?? 0);
-        console.info(`[Kaptik BG] Job ${jobId} 진행: step=${step} pct=${pct}`);
+        console.info(`[Kaptik BG YT] Job ${jobId} 진행: step=${step} pct=${pct}`);
         void updateJobProgress(platform, videoId, step, pct);
       } else if (msg.type === "done") {
-        console.info(`[Kaptik BG] Job ${jobId} 완료 total_cues=${String(msg.total_cues ?? 0)}`);
+        console.info(`[Kaptik BG YT] Job ${jobId} 완료 total_cues=${String(msg.total_cues ?? 0)}`);
         finish();
       } else if (msg.type === "error") {
-        console.error(`[Kaptik BG] Job ${jobId} 오류:`, String(msg.message ?? ""));
+        console.error(`[Kaptik BG YT] Job ${jobId} 오류:`, String(msg.message ?? ""));
                 ws.close();
         jobSockets.delete(jobId);
       }
@@ -192,7 +192,7 @@ function openJobSocket(
   };
 
   ws.onerror = () => {
-    console.error(`[Kaptik BG] Job socket 오류 jobId=${jobId}`);
+    console.error(`[Kaptik BG YT] Job socket 오류 jobId=${jobId}`);
         jobSockets.delete(jobId);
   };
 
@@ -291,7 +291,7 @@ async function handleStartLiveStreaming(
     });
   } catch (e) {
     liveSessions.delete(tabId);
-    console.error("[Kaptik BG] tabCapture.getMediaStreamId 실패:", e);
+    console.error("[Kaptik BG Live] tabCapture.getMediaStreamId 실패:", e);
     return { type: "ERR", error: e instanceof Error ? e.message : "tabCapture 실패" };
   }
 
@@ -315,11 +315,11 @@ async function handleStartLiveStreaming(
       live.seekSent = true;
       const msg: BroadcastMessage = { type: "SEEK_AND_SHOW", seekSec: 30 };
       chrome.tabs.sendMessage(tabId, msg).catch(() => {});
-      console.info(`[Kaptik BG] SEEK_AND_SHOW tabId=${tabId}`);
+      console.info(`[Kaptik BG Live] SEEK_AND_SHOW tabId=${tabId}`);
     }
   }, 30_000);
 
-  console.info(`[Kaptik BG] 라이브 스트리밍 시작 tabId=${tabId} sessionId=${sessionId}`);
+  console.info(`[Kaptik BG Live] 라이브 스트리밍 시작 tabId=${tabId} platform=${platform} sessionId=${sessionId}`);
   return { type: "STREAMING_STARTED" };
 }
 
@@ -334,7 +334,7 @@ function handleStopLiveStreaming(tabId: number): void {
   if (liveSessions.size === 0) {
     void closeOffscreen();
   }
-  console.info(`[Kaptik BG] 라이브 스트리밍 중단 tabId=${tabId}`);
+  console.info(`[Kaptik BG Live] 라이브 스트리밍 중단 tabId=${tabId}`);
 }
 
 /** 오프스크린에서 전달된 STT 메시지를 처리해 CUE_READY를 브로드캐스트한다. */
@@ -349,7 +349,7 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
     const name = String(data.name ?? "");
     const member = resolveMemberByName(name);
     if (member) {
-      console.info(`[Kaptik BG] 라이브 화자 식별 → tab ${tabId}: ${speakerId} = ${member.name}`);
+      console.info(`[Kaptik BG Live] 라이브 화자 식별 → tab ${tabId}: ${speakerId} = ${member.name}`);
       const msg: BroadcastMessage = { type: "SPEAKER_IDENTIFIED", speakerId, name, member };
       chrome.tabs.sendMessage(tabId, msg).catch(() => {});
     }
@@ -358,11 +358,13 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
 
   if (data.stage === 1) {
     const ts = Number(data.ts);
+    const text_ko = String(data.text_ko ?? "");
     session.pending.set(ts, {
-      text_ko: String(data.text_ko ?? ""),
+      text_ko,
       speaker: String(data.speaker ?? ""),
       cached: Boolean(data.cached),
     });
+    console.debug(`[Kaptik BG Live] STT stage1 ts=${ts}ms: "${text_ko}"`);
     return;
   }
 
@@ -385,6 +387,8 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
     session.cues.push(cue);
     session.cues.sort((a, b) => a.start - b.start);
 
+    console.info(`[Kaptik BG Live] CUE #${session.cues.length} → tab ${tabId}: [ko] "${p.text_ko}" / [en] "${String(data.text_en ?? "")}" (ts=${ts}ms, cached=${p.cached})`);
+
     const msg: BroadcastMessage = { type: "CUE_READY", cues: [...session.cues] };
     chrome.tabs.sendMessage(tabId, msg).catch(() => {});
 
@@ -394,7 +398,7 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
       session.seekTimer && clearTimeout(session.seekTimer);
       const seekMsg: BroadcastMessage = { type: "SEEK_AND_SHOW", seekSec: 30 };
       chrome.tabs.sendMessage(tabId, seekMsg).catch(() => {});
-      console.info(`[Kaptik BG] 조기 SEEK_AND_SHOW (ts=${ts}ms) tabId=${tabId}`);
+      console.info(`[Kaptik BG Live] 조기 SEEK_AND_SHOW (ts=${ts}ms) tabId=${tabId}`);
     }
   }
 }
@@ -432,15 +436,15 @@ async function handleStartStreaming(
     for (let i = 0; i < cues.length - 1; i++) {
       cues[i] = { ...cues[i], end: Math.min(cues[i].end, cues[i + 1].start - 0.1) };
     }
-    console.info(`[Kaptik BG] CUE #${cues.length} → tab ${tabId}: "${newCue.text.en}" (t=${newCue.start.toFixed(1)}s)`);
+    console.info(`[Kaptik BG YT] CUE #${cues.length} → tab ${tabId}: "${newCue.text.en}" (t=${newCue.start.toFixed(1)}s)`);
     const msg: BroadcastMessage = { type: "CUE_READY", cues: [...cues] };
     chrome.tabs.sendMessage(tabId, msg).catch((e: unknown) => {
-      console.warn(`[Kaptik BG] sendMessage 실패 tabId=${tabId}:`, e);
+      console.warn(`[Kaptik BG YT] sendMessage 실패 tabId=${tabId}:`, e);
     });
   };
 
   const onSpeakerIdentified = (speakerId: string, name: string, member: Member) => {
-    console.info(`[Kaptik BG] 화자 식별 → tab ${tabId}: ${speakerId} = ${member.name}`);
+    console.info(`[Kaptik BG YT] 화자 식별 → tab ${tabId}: ${speakerId} = ${member.name}`);
     const msg: BroadcastMessage = { type: "SPEAKER_IDENTIFIED", speakerId, name, member };
     chrome.tabs.sendMessage(tabId, msg).catch(() => {});
   };
@@ -456,7 +460,7 @@ async function handleStartStreaming(
         language,
         onCueReady,
         (err, code) => {
-          console.error(`[Kaptik BG] 스트리밍 오류 tabId=${tabId}:`, err);
+          console.error(`[Kaptik BG YT] 스트리밍 오류 tabId=${tabId}:`, err);
           const msg: BroadcastMessage = { type: "STREAMING_ERROR", message: err };
           chrome.tabs.sendMessage(tabId, msg).catch(() => {});
           if (code === "not_found") {
@@ -464,7 +468,7 @@ async function handleStartStreaming(
           }
         },
         (totalCues) => {
-          console.info(`[Kaptik BG] 스트리밍 완료 tabId=${tabId} totalCues=${totalCues}`);
+          console.info(`[Kaptik BG YT] 스트리밍 완료 tabId=${tabId} totalCues=${totalCues}`);
           streamingSessions.delete(tabId);
           const doneMsg: BroadcastMessage = { type: "CUES_ALL_READY", platform: "youtube", videoId };
           chrome.tabs.sendMessage(tabId, doneMsg).catch(() => {});
@@ -475,7 +479,7 @@ async function handleStartStreaming(
 
   streamingSessions.set(tabId, { session, cues });
   session.connect();
-  console.info(`[Kaptik BG] 스트리밍 시작 tabId=${tabId} seek=${seekSec}s${devMode ? " (mock)" : ""}`);
+  console.info(`[Kaptik BG YT] 스트리밍 시작 tabId=${tabId} seek=${seekSec}s${devMode ? " (mock)" : ""}`);
   return { type: "STREAMING_STARTED" };
 }
 
@@ -512,10 +516,10 @@ chrome.runtime.onMessage.addListener(
           handleLiveCueMsg(tabId, message.data);
         }
       } else if (message.type === "LIVE_STREAM_ERROR") {
-        console.error("[Kaptik BG] 라이브 스트림 오류:", message.message);
+        console.error("[Kaptik BG Live] 라이브 스트림 오류:", message.message);
         return false;
       } else if (message.type === "LIVE_WS_CLOSED") {
-        console.info(`[Kaptik BG] 라이브 WS 종료 code=${message.code}`);
+        console.info(`[Kaptik BG Live] 라이브 WS 종료 code=${message.code}`);
       }
       sendResponse(null);
       return false;
@@ -547,7 +551,7 @@ chrome.runtime.onMessage.addListener(
             if (tabId) {
               streamingSessions.get(tabId)?.session.disconnect();
               streamingSessions.delete(tabId);
-              console.info(`[Kaptik BG] 스트리밍 중단 tabId=${tabId}`);
+              console.info(`[Kaptik BG YT] 스트리밍 중단 tabId=${tabId}`);
             }
             return { type: "ERR", error: "" };
           }
