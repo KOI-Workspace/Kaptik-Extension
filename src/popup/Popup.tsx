@@ -56,6 +56,9 @@ export function Popup() {
   const [target, setTarget] = useState<Target | null | undefined>(undefined);
   const [settings, setSettings] = useState<KaptikSettings>(DEFAULT_SETTINGS);
   const [status, setStatus] = useState<SubtitleStatus>({ state: "none" });
+  // 팝업이 열린 상태에서 generating → available 전환이 감지되면 설정창 대신 완료 안내 뷰를 표시
+  const [generatedWhileOpen, setGeneratedWhileOpen] = useState(false);
+  const prevStatusStateRef = useRef<SubtitleStatus["state"]>("none");
   // 2초 폴링 interval ID (cleanup용)
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -100,7 +103,16 @@ export function Popup() {
 
     const poll = async () => {
       const s = await requestStatus(target.platform, target.videoId);
-      if (active && s) setStatus(s);
+      if (active && s) {
+        if (prevStatusStateRef.current === "generating" && s.state === "available") {
+          setGeneratedWhileOpen(true);
+        }
+        // 로컬 상태가 아직 "none"이지만 UI가 "generating"인 경우 — job이 백엔드에서
+        // 아직 startLocalJob 전이므로 poll이 "none"을 돌려줘 UI를 되돌리지 않도록 한다.
+        if (prevStatusStateRef.current === "generating" && s.state === "none") return;
+        prevStatusStateRef.current = s.state;
+        setStatus(s);
+      }
     };
 
     void poll();
@@ -127,6 +139,8 @@ export function Popup() {
 
   const handleGenerate = () => {
     if (!target) return;
+    setGeneratedWhileOpen(false);
+    prevStatusStateRef.current = "generating";
     setStatus({ state: "generating", etaSeconds: 120, progress: 0 });
     void startGeneration(target.platform, target.videoId).then((eta) => {
       if (eta === null) setStatus({ state: "failed" });
@@ -134,6 +148,8 @@ export function Popup() {
   };
 
   const handleRetry = () => {
+    setGeneratedWhileOpen(false);
+    prevStatusStateRef.current = "none";
     setStatus({ state: "none" });
   };
 
@@ -170,7 +186,7 @@ export function Popup() {
               </button>
             );
           })()}
-          {target && status.state === "available" && (
+          {target && status.state === "available" && !generatedWhileOpen && (
             <Switch
               checked={settings.enabled}
               onChange={(v) => patch({ enabled: v })}
@@ -204,7 +220,11 @@ export function Popup() {
         <FailedView t={t} onRetry={handleRetry} />
       )}
 
-      {target && !locked && status.state === "available" && (
+      {target && !locked && status.state === "available" && generatedWhileOpen && (
+        <SubtitleReadyView t={t} onConfigure={() => setGeneratedWhileOpen(false)} />
+      )}
+
+      {target && !locked && status.state === "available" && !generatedWhileOpen && (
         <AvailableView
           settings={settings}
           patch={patch}
@@ -244,6 +264,25 @@ function NoneView({ t, onGenerate }: { t: Messages; onGenerate: () => void }) {
         {t.generateBtn}
       </button>
       <div className="state-note">{t.noneNote}</div>
+    </div>
+  );
+}
+
+function SubtitleReadyView({
+  t,
+  onConfigure,
+}: {
+  t: Messages;
+  onConfigure: () => void;
+}) {
+  return (
+    <div className="state-block">
+      <div className="state-emoji">✅</div>
+      <div className="state-title">{t.readyTitle}</div>
+      <div className="state-desc">{t.readyDesc}</div>
+      <button type="button" className="btn-primary" onClick={onConfigure}>
+        {t.viewSubtitlesBtn}
+      </button>
     </div>
   );
 }
