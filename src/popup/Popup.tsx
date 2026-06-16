@@ -55,7 +55,8 @@ export function Popup() {
   // undefined: 확인 중, null: 지원 안 함, Target: 영상 식별됨
   const [target, setTarget] = useState<Target | null | undefined>(undefined);
   const [settings, setSettings] = useState<KaptikSettings>(DEFAULT_SETTINGS);
-  const [status, setStatus] = useState<SubtitleStatus>({ state: "none" });
+  // undefined: 첫 poll 응답 대기 중 (팝업 열릴 때 순간적으로 NoneView가 보이지 않도록)
+  const [status, setStatus] = useState<SubtitleStatus | undefined>(undefined);
   // 팝업이 열린 상태에서 generating → available 전환이 감지되면 설정창 대신 완료 안내 뷰를 표시
   const [generatedWhileOpen, setGeneratedWhileOpen] = useState(false);
   const prevStatusStateRef = useRef<SubtitleStatus["state"]>("none");
@@ -111,7 +112,7 @@ export function Popup() {
         // 로컬 상태가 아직 "none"이지만 UI가 "generating"인 경우 — job이 백엔드에서
         // 아직 startLocalJob 전이므로 poll이 "none"을 돌려줘 UI를 되돌리지 않도록 한다.
         if (prevStatusStateRef.current === "generating" && s.state === "none") return;
-        prevStatusStateRef.current = s.state;
+        prevStatusStateRef.current = s.state as SubtitleStatus["state"];
         setStatus(s);
       }
     };
@@ -217,7 +218,7 @@ export function Popup() {
               </button>
             );
           })()}
-          {target && status.state === "available" && !generatedWhileOpen && (
+          {target && status?.state === "available" && !generatedWhileOpen && (
             <Switch
               checked={settings.enabled}
               onChange={(v) => patch({ enabled: v })}
@@ -234,23 +235,25 @@ export function Popup() {
         <LockedView t={t} onUpgrade={openPricing} />
       )}
 
-      {target && !locked && status.state === "none" && (
+      {target && !locked && status === undefined && <CheckingView t={t} />}
+
+      {target && !locked && status?.state === "none" && (
         <NoneView t={t} onGenerate={handleGenerate} />
       )}
 
-      {target && !locked && status.state === "generating" && (
+      {target && !locked && status?.state === "generating" && (
         <GeneratingView t={t} status={status} />
       )}
 
-      {target && !locked && status.state === "failed" && (
+      {target && !locked && status?.state === "failed" && (
         <FailedView t={t} reason={status.reason} onRetry={handleRetry} />
       )}
 
-      {target && !locked && status.state === "available" && generatedWhileOpen && (
+      {target && !locked && status?.state === "available" && generatedWhileOpen && (
         <SubtitleReadyView t={t} onConfigure={() => setGeneratedWhileOpen(false)} />
       )}
 
-      {target && !locked && status.state === "available" && !generatedWhileOpen && (
+      {target && !locked && status?.state === "available" && !generatedWhileOpen && (
         <AvailableView
           settings={settings}
           patch={patch}
