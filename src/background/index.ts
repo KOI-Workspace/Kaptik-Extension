@@ -15,6 +15,7 @@ import {
   startLocalJob,
   updateJobProgress,
   completeLocalJob,
+  removeAvailable,
 } from "./generationStore";
 import { StreamingSession } from "@/api/wsClient";
 
@@ -22,7 +23,7 @@ import { StreamingSession } from "@/api/wsClient";
 const trackCache = new Map<string, SubtitleTrack>();
 
 /** tabId → 현재 스트리밍 세션 + 누적 cue 배열 */
-const streamingSessions = new Map<number, { session: StreamingSession; cues: SubtitleCue[] }>();
+const streamingSessions = new Map<number, { session: StreamingSession; cues: SubtitleCue[]; platform: Platform; videoId: string }>();
 
 /** tabId → 라이브 스트리밍 세션 상태 */
 interface LiveSession {
@@ -124,7 +125,7 @@ async function handleStartGeneration(
   // 로컬 상태를 generating으로 전이 — 팝업 폴링이 즉시 반영되도록
   const etaSeconds = await startLocalJob(platform, videoId);
 
-  openJobSocket(jobId, platform, videoId, serverUrl, authToken, devMode);
+  openJobSocket(jobId, platform, videoId, serverUrl, authToken);
   return { type: "GENERATION_STARTED", etaSeconds };
 }
 
@@ -135,7 +136,6 @@ function openJobSocket(
   videoId: string,
   serverUrl: string,
   authToken: string,
-  devMode = false,
 ): void {
   const token = authToken ? `?token=${encodeURIComponent(authToken)}` : "";
   const ws = new WebSocket(`${serverUrl}/ws-job/${jobId}${token}`);
@@ -149,15 +149,6 @@ function openJobSocket(
     void onGenerationComplete(platform, videoId);
   };
 
-  // devMode: 60초 후 강제 완료 — 긴 영상도 1분치 생성되면 바로 확인 가능
-  let devTimer: ReturnType<typeof setTimeout> | undefined;
-  if (devMode) {
-    devTimer = setTimeout(() => {
-      console.info(`[Kaptik BG] devMode 60s 강제 완료 jobId=${jobId}`);
-      finish();
-    }, 60_000);
-  }
-
   ws.onmessage = (e: MessageEvent<string>) => {
     try {
       const msg = JSON.parse(e.data) as Record<string, unknown>;
@@ -168,12 +159,10 @@ function openJobSocket(
         void updateJobProgress(platform, videoId, step, pct);
       } else if (msg.type === "done") {
         console.info(`[Kaptik BG] Job ${jobId} 완료 total_cues=${String(msg.total_cues ?? 0)}`);
-        clearTimeout(devTimer);
         finish();
       } else if (msg.type === "error") {
         console.error(`[Kaptik BG] Job ${jobId} 오류:`, String(msg.message ?? ""));
-        clearTimeout(devTimer);
-        ws.close();
+                ws.close();
         jobSockets.delete(jobId);
       }
     } catch { /* malformed JSON */ }
@@ -181,21 +170,24 @@ function openJobSocket(
 
   ws.onerror = () => {
     console.error(`[Kaptik BG] Job socket 오류 jobId=${jobId}`);
-    clearTimeout(devTimer);
-    jobSockets.delete(jobId);
+        jobSockets.delete(jobId);
   };
 
   ws.onclose = () => {
-    clearTimeout(devTimer);
-    jobSockets.delete(jobId);
+        jobSockets.delete(jobId);
   };
 }
 
-/** 생성 완료 처리: 알림 + 탭 브로드캐스트 */
+/** 생성 완료 처리: 탭 브로드캐스트 (알림은 cues 로딩 완료 후 발동) */
 async function onGenerationComplete(
   platform: Platform,
   videoId: string,
 ): Promise<void> {
+  await broadcastReady(platform, videoId);
+}
+
+/** cues 로딩 완료 시 Chrome 알림 발동 */
+async function notifySubtitlesReady(platform: Platform, videoId: string): Promise<void> {
   const settings = await getSettings();
   if (settings.notifyOnReady) {
     chrome.notifications.create(`kaptik:${platform}:${videoId}`, {
@@ -206,8 +198,6 @@ async function onGenerationComplete(
       priority: 2,
     });
   }
-
-  await broadcastReady(platform, videoId);
 }
 
 /** 열려 있는 YouTube/Weverse 탭에 생성 완료를 알린다. */
@@ -395,7 +385,6 @@ async function handleStartStreaming(
   const { language, devMode } = settings;
   const authToken = devMode ? "dev" : settings.authToken;
 
-  // onDone → broadcastReady 용으로 videoId 추출
   let videoId: string;
   try {
     videoId = new URL(youtubeUrl).searchParams.get("v") ?? youtubeUrl;
@@ -428,14 +417,20 @@ async function handleStartStreaming(
         console.warn(`[Kaptik BG] sendMessage 실패 tabId=${tabId}:`, e);
       });
     },
-    (err) => {
+    (err, code) => {
       console.error(`[Kaptik BG] 스트리밍 오류 tabId=${tabId}:`, err);
       const msg: BroadcastMessage = { type: "STREAMING_ERROR", message: err };
       chrome.tabs.sendMessage(tabId, msg).catch(() => {});
+      if (code === "not_found") {
+        void removeAvailable("youtube", videoId);
+      }
     },
     (totalCues) => {
       console.info(`[Kaptik BG] 스트리밍 완료 tabId=${tabId} totalCues=${totalCues}`);
-      void broadcastReady("youtube", videoId);
+      streamingSessions.delete(tabId);
+      const doneMsg: BroadcastMessage = { type: "CUES_ALL_READY", platform: "youtube", videoId };
+      chrome.tabs.sendMessage(tabId, doneMsg).catch(() => {});
+      void notifySubtitlesReady("youtube", videoId);
     },
     (speakerId, name, member) => {
       console.info(`[Kaptik BG] 화자 식별 → tab ${tabId}: ${speakerId} = ${member.name}`);
@@ -444,7 +439,7 @@ async function handleStartStreaming(
     },
   );
 
-  streamingSessions.set(tabId, { session, cues });
+  streamingSessions.set(tabId, { session, cues, platform: "youtube", videoId });
   session.connect();
   console.info(`[Kaptik BG] 스트리밍 시작 tabId=${tabId} seek=${seekSec}s`);
   return { type: "STREAMING_STARTED" };
@@ -484,6 +479,7 @@ chrome.runtime.onMessage.addListener(
         }
       } else if (message.type === "LIVE_STREAM_ERROR") {
         console.error("[Kaptik BG] 라이브 스트림 오류:", message.message);
+        return false;
       } else if (message.type === "LIVE_WS_CLOSED") {
         console.info(`[Kaptik BG] 라이브 WS 종료 code=${message.code}`);
       }

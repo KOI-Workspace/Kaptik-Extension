@@ -18,7 +18,7 @@ export class StreamingSession {
     private authToken: string,
     private targetLang: string,
     private onCueReady: (cue: SubtitleCue) => void,
-    private onError: (msg: string) => void,
+    private onError: (msg: string, code?: string) => void,
     private onDone?: (totalCues: number) => void,
     private onSpeakerIdentified?: (speakerId: string, name: string, member: Member) => void,
   ) {}
@@ -95,12 +95,14 @@ export class StreamingSession {
     if (msg.type === "done") {
       const totalCues = Number(msg.total_cues ?? 0);
       console.info(`[Kaptik WS] done — total_cues=${totalCues}`);
+      this.ws?.close(1000);
+      this.ws = null;
       this.onDone?.(totalCues);
       return;
     }
     if (msg.type === "error") {
       console.error(`[Kaptik WS] 서버 오류 code=${String(msg.code ?? "")}:`, String(msg.message ?? "알 수 없는 오류"));
-      this.onError(String(msg.message ?? "알 수 없는 오류"));
+      this.onError(String(msg.message ?? "알 수 없는 오류"), String(msg.code ?? ""));
       return;
     }
 

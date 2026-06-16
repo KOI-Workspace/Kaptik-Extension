@@ -129,3 +129,14 @@ export async function completeLocalJob(
 ): Promise<boolean> {
   return markDone(keyOf(platform, videoId));
 }
+
+export async function removeAvailable(platform: Platform, videoId: string): Promise<void> {
+  const key = keyOf(platform, videoId);
+  const [done, jobs] = await Promise.all([readDone(), readJobs()]);
+  const newDone = done.filter((k) => k !== key);
+  delete jobs[key];
+  await Promise.all([
+    chrome.storage.local.set({ [DONE_KEY]: newDone }),
+    writeJobs(jobs),
+  ]);
+}
