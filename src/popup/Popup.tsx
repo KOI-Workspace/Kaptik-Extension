@@ -143,9 +143,15 @@ export function Popup() {
     if (!target) return;
     setGeneratedWhileOpen(false);
     prevStatusStateRef.current = "generating";
-    setStatus({ state: "generating", etaSeconds: 120, progress: 0 });
+    setStatus({ state: "generating", etaSeconds: 0, progress: 0 });
     void startGeneration(target.platform, target.videoId).then((eta) => {
-      if (eta === null) setStatus({ state: "failed" });
+      if (eta === null) {
+        setStatus({ state: "failed" });
+      } else {
+        setStatus((prev) =>
+          prev?.state === "generating" ? { ...prev, etaSeconds: eta } : prev
+        );
+      }
     });
   };
 
