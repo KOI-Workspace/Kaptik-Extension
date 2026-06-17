@@ -390,7 +390,7 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
 
     console.info(`[Kaptik BG Live] CUE #${session.cues.length} → tab ${tabId}: [ko] "${p.text_ko}" / [en] "${String(data.text_en ?? "")}" (ts=${ts}ms, cached=${p.cached})`);
 
-    const msg: BroadcastMessage = { type: "CUE_READY", cues: [...session.cues] };
+    const msg: BroadcastMessage = { type: "CUE_READY", videoId: session.videoId, cues: [...session.cues] };
     chrome.tabs.sendMessage(tabId, msg).catch(() => {});
   }
 }
@@ -430,7 +430,7 @@ async function handleStartStreaming(
       cues[i] = { ...cues[i], end: Math.min(cues[i].end, cues[i + 1].start - 0.1) };
     }
     console.info(`[Kaptik BG YT] CUE #${cues.length} → tab ${tabId}: "${newCue.text.en}" (t=${newCue.start.toFixed(1)}s)`);
-    const msg: BroadcastMessage = { type: "CUE_READY", cues: [...cues] };
+    const msg: BroadcastMessage = { type: "CUE_READY", videoId, cues: [...cues] };
     chrome.tabs.sendMessage(tabId, msg).catch((e: unknown) => {
       console.warn(`[Kaptik BG YT] sendMessage 실패 tabId=${tabId}:`, e);
     });
@@ -570,6 +570,40 @@ chrome.runtime.onMessage.addListener(
             const tabId = sender.tab?.id;
             if (tabId) handleStopLiveStreaming(tabId);
             return { type: "ERR", error: "" };
+          }
+          case "GET_TRACK_KIND": {
+            const tabId = sender.tab?.id;
+            if (!tabId) return { type: "TRACK_KIND_OK" };
+            try {
+              const results = await chrome.scripting.executeScript({
+                target: { tabId },
+                world: "MAIN",
+                func: () => {
+                  try {
+                    type YTPlayer = HTMLElement & {
+                      getPlayerResponse?: () => {
+                        captions?: {
+                          playerCaptionsTracklistRenderer?: {
+                            captionTracks?: Array<{ kind?: string }>;
+                          };
+                        };
+                      };
+                    };
+                    const player = document.getElementById("movie_player") as YTPlayer | null;
+                    const tracks = player?.getPlayerResponse?.()
+                      ?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+                    const track = tracks?.[0];
+                    if (!track) return undefined;
+                    return track.kind === "asr" ? "ASR" : "standard";
+                  } catch {
+                    return undefined;
+                  }
+                },
+              });
+              return { type: "TRACK_KIND_OK", trackKind: results[0]?.result ?? undefined };
+            } catch {
+              return { type: "TRACK_KIND_OK" };
+            }
           }
           default:
             return { type: "ERR", error: "알 수 없는 메시지" };

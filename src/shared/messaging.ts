@@ -8,7 +8,8 @@ export type RequestMessage =
   | { type: "START_STREAMING"; youtubeUrl: string; seekSec: number; serverUrl: string; keepCues?: boolean; trackKind?: string }
   | { type: "STOP_STREAMING" }
   | { type: "START_LIVE_STREAMING"; platform: Platform; videoId: string; captureStartVideoTime: number; videoTitle?: string; videoUrl?: string }
-  | { type: "STOP_LIVE_STREAMING" };
+  | { type: "STOP_LIVE_STREAMING" }
+  | { type: "GET_TRACK_KIND" };
 
 /** background → 요청자 응답 메시지 */
 export type ResponseMessage =
@@ -16,13 +17,14 @@ export type ResponseMessage =
   | { type: "STATUS_OK"; status: SubtitleStatus }
   | { type: "GENERATION_STARTED"; etaSeconds: number }
   | { type: "STREAMING_STARTED" }
+  | { type: "TRACK_KIND_OK"; trackKind?: string }
   | { type: "ERR"; error: string };
 
 /** background → content 브로드캐스트 */
 export type BroadcastMessage =
   | { type: "SUBTITLES_READY"; platform: Platform; videoId: string }
   | { type: "CUES_ALL_READY"; platform: Platform; videoId: string }
-  | { type: "CUE_READY"; cues: SubtitleCue[] }
+  | { type: "CUE_READY"; videoId: string; cues: SubtitleCue[] }
   | { type: "STREAMING_ERROR"; message: string }
   | { type: "SPEAKER_IDENTIFIED"; speakerId: string; name: string; member: Member };
 

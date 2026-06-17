@@ -93,7 +93,8 @@ class SubtitleController {
           void this.evaluate();
         }
       } else if (message?.type === "CUE_READY") {
-        if (this.mounted) {
+        // videoId 불일치 → 이전 영상 세션의 stale 메시지이므로 무시
+        if (this.mounted && this.mounted.videoId === message.videoId) {
           if (this.mounted.isLive) {
             this.mounted.handle.updateCues(message.cues);
           } else if (this.mounted.vodCuesReady) {
@@ -158,11 +159,11 @@ class SubtitleController {
     if (this.evaluating) return;
     this.evaluating = true;
     try {
-      // DOM 속성 기반 ID를 우선 사용 (autoplay 시 URL보다 먼저 업데이트됨).
-      // URL이 아직 이전 영상을 가리켜도 실제 재생 중인 영상을 정확히 감지할 수 있다.
-      const getEffectiveVideoId = () =>
-        this.adapter.getDomVideoId?.() ?? this.adapter.getVideoId(location.href);
-      const videoId = getEffectiveVideoId();
+      // URL 기반으로 영상 ID를 판별한다.
+      // YouTube SPA는 pushState로 URL을 먼저 바꾼 뒤 DOM을 업데이트하므로
+      // URL이 항상 DOM보다 최신 상태다. DOM을 우선하면 stale 값으로 early-return해
+      // 이전 영상 자막이 남는 버그가 생긴다.
+      const videoId = this.adapter.getVideoId(location.href);
 
       // 영상 없음 / 자막 OFF → 숨김
       if (!videoId || !this.settings.enabled) {
@@ -190,7 +191,7 @@ class SubtitleController {
       // 평가 도중 영상/설정이 바뀌었으면 중단
       if (
         !video ||
-        videoId !== getEffectiveVideoId() ||
+        videoId !== this.adapter.getVideoId(location.href) ||
         !this.settings.enabled
       ) {
         return;
@@ -373,40 +374,18 @@ class SubtitleController {
 }
 
 /**
- * YouTube caption의 trackKind를 ytInitialPlayerResponse에서 읽어온다.
- * "asr" → "ASR", 그 외 트랙 존재 → "standard", 트랙 없음 → undefined
+ * YouTube 플레이어의 caption trackKind를 background를 통해 읽어온다.
+ * background가 chrome.scripting.executeScript(world: MAIN)으로 CSP 우회 없이 실행한다.
  */
-function getYoutubeTrackKind(): Promise<string | undefined> {
+async function getYoutubeTrackKind(): Promise<string | undefined> {
   return new Promise((resolve) => {
-    const RESPONSE_TYPE = "KAPTIK_TRACK_KIND_RESULT";
-    const handler = (event: MessageEvent) => {
-      if (event.source !== window) return;
-      const data = event.data as Record<string, unknown>;
-      if (data?.type !== RESPONSE_TYPE) return;
-      window.removeEventListener("message", handler);
-      resolve(data.trackKind as string | undefined);
-    };
-    window.addEventListener("message", handler);
-    setTimeout(() => {
-      window.removeEventListener("message", handler);
-      resolve(undefined);
-    }, 1000);
-
-    const script = document.createElement("script");
-    // ytInitialPlayerResponse는 SPA 이동 후 stale해지므로
-    // 플레이어 DOM의 getPlayerResponse()로 현재 영상 데이터를 직접 읽는다
-    script.textContent = `(function(){
-      try{
-        const player=document.getElementById("movie_player");
-        const resp=player?.getPlayerResponse?.();
-        const tracks=resp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-        const track=tracks?.[0];
-        const kind=track?.kind==="asr"?"ASR":(track?"standard":undefined);
-        window.postMessage({type:"${RESPONSE_TYPE}",trackKind:kind},"*");
-      }catch(e){window.postMessage({type:"${RESPONSE_TYPE}",trackKind:undefined},"*");}
-    })();`;
-    (document.head ?? document.documentElement).appendChild(script);
-    script.remove();
+    chrome.runtime.sendMessage(
+      { type: "GET_TRACK_KIND" },
+      (res: { type: string; trackKind?: string } | undefined) => {
+        if (chrome.runtime.lastError || !res) { resolve(undefined); return; }
+        resolve(res.type === "TRACK_KIND_OK" ? res.trackKind : undefined);
+      },
+    );
   });
 }
 

@@ -58,15 +58,6 @@ export const youtubeAdapter: SiteAdapter = {
     return document.querySelector(".ytp-live") !== null;
   },
 
-  getDomVideoId() {
-    // ytd-watch-flexy[video-id]는 YouTube SPA에서 pushState보다 먼저 바뀌는 경우가 있어
-    // autoplay 전환 시 URL 기반 감지보다 빠르게 영상 교체를 인식할 수 있다.
-    return (
-      (document.querySelector("ytd-watch-flexy") as HTMLElement | null)
-        ?.getAttribute("video-id") ?? null
-    );
-  },
-
   getPanelContainer() {
     // 넓은 화면(2컬럼): 우측 관련영상 컬럼에 도킹해 관련영상을 아래로 민다.
     // 좁은 화면(1컬럼): 우측 컬럼이 영상 아래로 내려가므로 영상 바로 아래에 도킹한다.

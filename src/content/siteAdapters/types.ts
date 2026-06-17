@@ -28,10 +28,4 @@ export interface SiteAdapter {
   getPanelContainer(): HTMLElement | null;
   /** 현재 URL이 라이브 스트림인지 여부 (미구현 어댑터는 항상 false). */
   isLive?(url: string): boolean;
-  /**
-   * DOM 상태 기반 영상 ID (content script 전용, optional).
-   * URL보다 먼저 업데이트되는 플레이어 속성을 사용해 autoplay/SPA 전환을 빠르게 감지한다.
-   * null이면 getVideoId(location.href)로 폴백.
-   */
-  getDomVideoId?(): string | null;
 }
