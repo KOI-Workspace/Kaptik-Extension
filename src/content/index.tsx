@@ -63,10 +63,11 @@ class SubtitleController {
     onSettingsChanged((s) => {
       const prevLanguage = this.settings.language;
       this.settings = s;
-      // 언어 변경 시: 기존 자막 즉시 제거하고 SUBTITLES_READY 브로드캐스트로 재마운트
+      // 언어 변경 시: 기존 자막 즉시 제거 후 evaluate
+      // evaluate 내부에서 requestStatus(language)를 호출하면 새 언어 기준으로 체크하므로
+      // generating 상태라면 마운트 안 하고 대기, 완료되면 SUBTITLES_READY로 재마운트된다
       if (prevLanguage !== s.language && this.mounted) {
         this.teardown();
-        return;
       }
       void this.evaluate();
     });
@@ -229,7 +230,9 @@ class SubtitleController {
       // 생성이 끝나면(완료/실패) SUBTITLES_READY 브로드캐스트가 evaluate()를 다시 호출한다.
       let speakerIdentified = true;
       if (!isLive) {
-        const vodStatus = await requestStatus(this.adapter.platform, videoId);
+        // this.settings.language는 onSettingsChanged가 즉시 업데이트하므로 항상 최신값
+        // language를 직접 전달해 storage 쓰기 완료 전 race condition으로 old 언어가 체크되는 것을 방지
+        const vodStatus = await requestStatus(this.adapter.platform, videoId, this.settings.language);
         if (vodStatus?.state === "failed") {
           // 생성 자체가 불가능한 영상(예: 한국어 아님) → 패널에 안내만, 가운데 자막은 없음
           const errorTrack: SubtitleTrack = {
@@ -314,6 +317,8 @@ class SubtitleController {
             serverUrl: this.settings.serverUrl,
             keepCues,
             trackKind,
+            // this.settings는 onSettingsChanged가 즉시 업데이트하므로 항상 최신 언어
+            language: this.settings.language,
           }).catch((err: unknown) => console.error("[Kaptik YT] START_STREAMING 실패:", err));
           console.info(`[Kaptik YT] 스트리밍 요청 (${videoId}, seek=${seekSec}s, keepCues=${keepCues})`);
         };
