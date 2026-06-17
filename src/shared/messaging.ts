@@ -3,9 +3,9 @@ import type { Member, Platform, SubtitleCue, SubtitleStatus, SubtitleTrack } fro
 /** content/popup → background 요청 메시지 */
 export type RequestMessage =
   | { type: "GET_SUBTITLES"; platform: Platform; videoId: string }
-  | { type: "GET_STATUS"; platform: Platform; videoId: string }
+  | { type: "GET_STATUS"; platform: Platform; videoId: string; language?: string }
   | { type: "START_GENERATION"; platform: Platform; videoId: string; force?: boolean; language?: string }
-  | { type: "START_STREAMING"; youtubeUrl: string; seekSec: number; serverUrl: string; keepCues?: boolean; trackKind?: string }
+  | { type: "START_STREAMING"; youtubeUrl: string; seekSec: number; serverUrl: string; keepCues?: boolean; trackKind?: string; language?: string }
   | { type: "STOP_STREAMING" }
   | { type: "START_LIVE_STREAMING"; platform: Platform; videoId: string; captureStartVideoTime: number; videoTitle?: string; videoUrl?: string }
   | { type: "STOP_LIVE_STREAMING" }
@@ -55,12 +55,13 @@ export async function requestSubtitles(
   return res?.type === "SUBTITLES_OK" ? res.track : null;
 }
 
-/** 영상의 자막 제공 상태를 조회한다. */
+/** 영상의 자막 제공 상태를 조회한다. language를 전달하면 해당 언어 기준으로 체크한다. */
 export async function requestStatus(
   platform: Platform,
   videoId: string,
+  language?: string,
 ): Promise<SubtitleStatus | null> {
-  const res = await send({ type: "GET_STATUS", platform, videoId });
+  const res = await send({ type: "GET_STATUS", platform, videoId, language });
   return res?.type === "STATUS_OK" ? res.status : null;
 }
 

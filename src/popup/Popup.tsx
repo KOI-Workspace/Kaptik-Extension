@@ -62,6 +62,9 @@ export function Popup() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   // 2초 폴링 interval ID (cleanup용)
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // poll 클로저에서 settings 최신값을 읽기 위한 ref (useEffect는 target 변경 시에만 재실행되므로 직접 참조 시 stale)
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
 
   // settings.language가 UI 언어와 자막 생성 언어를 함께 제어
   const t = getMessages(settings.language);
@@ -103,7 +106,8 @@ export function Popup() {
     let active = true;
 
     const poll = async () => {
-      const s = await requestStatus(target.platform, target.videoId);
+      // settingsRef로 현재 language를 읽어 전달 — storage 쓰기 전 race condition 방지
+      const s = await requestStatus(target.platform, target.videoId, settingsRef.current.language);
       if (active && s) {
         // 로컬 상태가 아직 "none"이지만 UI가 "generating"인 경우 — job이 백엔드에서
         // 아직 startLocalJob 전이므로 poll이 "none"을 돌려줘 UI를 되돌리지 않도록 한다.

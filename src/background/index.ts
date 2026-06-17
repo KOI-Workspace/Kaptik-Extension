@@ -140,12 +140,14 @@ async function handleGetSubtitles(
 async function handleGetStatus(
   platform: Platform,
   videoId: string,
+  msgLanguage?: string,
 ): Promise<ResponseMessage> {
   const settings = await getSettings();
-  // 폴백: 로컬 시뮬레이션 (실제 백엔드는 ws-job으로 진행 추적)
+  // 호출자가 language를 직접 전달하면 우선 사용 — storage 쓰기 완료 전 race condition 방지
+  const language = msgLanguage ?? settings.language;
   const wasDone = await isLocalJobDone(platform, videoId);
   // 현재 언어를 전달해 다른 언어로 생성된 자막은 "none"으로 처리
-  const status = await getLocalStatus(platform, videoId, settings.language);
+  const status = await getLocalStatus(platform, videoId, language);
   // getLocalStatus 내부에서 막 완료/실패 전이됐는데, 전이 핸들러(setTimeout 등)가
   // 같은 타이밍에 먼저 가져가 버려 SUBTITLES_READY를 못 보내는 경쟁을 방지
   if (!wasDone) {
@@ -458,9 +460,12 @@ async function handleStartStreaming(
   serverUrl: string,
   keepCues: boolean,
   trackKind?: string,
+  msgLanguage?: string,
 ): Promise<ResponseMessage> {
   const settings = await getSettings();
-  const { language, devMode } = settings;
+  // 메시지에 language가 있으면 우선 사용 — storage 쓰기 완료 전 race condition 방지
+  const language = msgLanguage ?? settings.language;
+  const { devMode } = settings;
   const authToken = devMode ? "dev" : settings.authToken;
 
   let videoId: string;
@@ -584,7 +589,7 @@ chrome.runtime.onMessage.addListener(
           case "GET_SUBTITLES":
             return await handleGetSubtitles(req.platform, req.videoId);
           case "GET_STATUS":
-            return await handleGetStatus(req.platform, req.videoId);
+            return await handleGetStatus(req.platform, req.videoId, req.language);
           case "START_GENERATION":
             return await handleStartGeneration(sender.tab?.id, req.platform, req.videoId, req.force, req.language);
           case "START_STREAMING": {
@@ -597,6 +602,7 @@ chrome.runtime.onMessage.addListener(
               req.serverUrl,
               req.keepCues ?? false,
               req.trackKind,
+              req.language,
             );
           }
           case "STOP_STREAMING": {
