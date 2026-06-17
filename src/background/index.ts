@@ -18,6 +18,7 @@ import {
   removeAvailable,
   isLocalJobDone,
   markCuesReady,
+  areCuesReady,
 } from "./generationStore";
 import { StreamingSession } from "@/api/wsClient";
 import { MockStreamingSession } from "@/api/mockStreamingSession";
@@ -450,7 +451,10 @@ async function handleStartStreaming(
           const msg: BroadcastMessage = { type: "STREAMING_ERROR", message: err };
           chrome.tabs.sendMessage(tabId, msg).catch(() => {});
           if (code === "not_found") {
-            void removeAvailable("youtube", videoId);
+            // cues가 이미 로드된 경우(재생/탐색 후 재연결 시도)에는 available 상태를 보존한다
+            void areCuesReady("youtube", videoId).then((loaded) => {
+              if (!loaded) void removeAvailable("youtube", videoId);
+            });
           }
         },
         (totalCues) => {
