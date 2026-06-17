@@ -85,9 +85,11 @@ class SubtitleController {
           this.startStreamingFn &&
           this.mounted.videoId === message.videoId
         ) {
-          // 생성 완료 → 현재 재생 위치부터 스트리밍 재시작, cue 버퍼 초기화
+          // 생성 완료 → 현재 재생 위치부터 스트리밍 재시작, cue 버퍼 및 화면 즉시 초기화
+          // 화면을 비우지 않으면 이전 언어 자막이 새 자막 로딩 완료까지 계속 노출됨
           this.mounted.vodCuesReady = false;
           this.mounted.lastVodCues = [];
+          this.mounted.handle.updateCues([]);
           this.startStreamingFn(Math.floor(this.mounted.video.currentTime));
         } else {
           void this.evaluate();

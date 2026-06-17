@@ -64,7 +64,7 @@ export function Popup() {
   // 2초 폴링 interval ID (cleanup용)
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // 선택 언어에 맞춰 UI 전체 텍스트를 현지화
+  // settings.language가 UI 언어와 자막 생성 언어를 함께 제어
   const t = getMessages(settings.language);
 
   useEffect(() => {
