@@ -180,14 +180,6 @@ export function SidePanel({
               </option>
             ))}
           </select>
-          <button
-            type="button"
-            className="kaptik-panel-close"
-            aria-label={t.ariaClosePanel}
-            onClick={() => void updateSettings({ showPanel: false })}
-          >
-            ✕
-          </button>
         </div>
       </header>
 
