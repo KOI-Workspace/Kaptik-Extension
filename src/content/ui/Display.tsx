@@ -42,7 +42,6 @@ export function Display({ video, track, panelMount, panelDocked, isLive = false 
         track={track}
         activeIndex={activeIndex}
         settings={settings}
-        isLive={isLive}
       />
 
       {/* 폴백 모드: 패널을 영상 위 오버레이로 함께 렌더 */}

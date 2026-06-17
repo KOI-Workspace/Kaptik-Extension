@@ -8,7 +8,6 @@ interface CenterSubtitleProps {
   track: SubtitleTrack;
   activeIndex: number;
   settings: KaptikSettings;
-  isLive?: boolean;
 }
 
 /** 선택 언어 → 영어 → 첫 언어 순으로 텍스트를 고른다. */
@@ -28,7 +27,6 @@ export function CenterSubtitle({
   track,
   activeIndex,
   settings,
-  isLive = false,
 }: CenterSubtitleProps) {
   if (activeIndex < 0) return null;
 
@@ -46,7 +44,7 @@ export function CenterSubtitle({
     <div className="kaptik-center" style={style}>
       <div className="kaptik-center-box">
         {recent.map((cue, i) => {
-          const member = isLive ? resolveMember(track, cue) : null;
+          const member = resolveMember(track, cue);
           const text = pickText(cue.text, settings.language);
           if (!text) return null;
           const isActive = startIdx + i === activeIndex;

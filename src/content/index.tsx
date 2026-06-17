@@ -124,8 +124,8 @@ class SubtitleController {
           this.mounted.handle.updateCues(this.mounted.lastVodCues);
         }
       } else if (message?.type === "SPEAKER_IDENTIFIED") {
-        if (this.mounted?.isLive) {
-          // 화자 식별 성공 → 30s 타이머 해제, members 맵 업데이트
+        if (this.mounted) {
+          // 화자 식별 성공 → 30s 타이머 해제, members 맵 업데이트 (VOD/Live 공통)
           clearTimeout(this.speakerIdTimer);
           this.speakerIdTimer = undefined;
           this.speakerIdentifiedOnce = true;
@@ -137,7 +137,7 @@ class SubtitleController {
             [message.member.id]: message.member,
             [message.member.name]: message.member,
           });
-          console.info(`[Kaptik Live] 화자 식별 반영: ${message.speakerId} → ${message.member.name}`);
+          console.info(`[Kaptik] 화자 식별 반영: ${message.speakerId} → ${message.member.name}`);
         }
       } else if (message?.type === "STREAMING_ERROR") {
         console.error("[Kaptik YT] 스트리밍 오류:", message.message);
