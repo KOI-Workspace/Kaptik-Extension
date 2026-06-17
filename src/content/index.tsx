@@ -231,11 +231,14 @@ class SubtitleController {
           console.info(`[Kaptik] 자막 생성 불가 (${videoId}): ${vodStatus.reason ?? "unknown"}`);
           return;
         }
-        if (vodStatus?.state !== "available") {
+        // cues_loading: job은 완료됐지만 스트리밍 미시작 — available과 동일하게 처리해 스트리밍을 바로 시작한다.
+        // 스트리밍이 완료되면 markCuesReady가 호출돼 available로 전환된다.
+        const isCuesLoading = vodStatus?.state === "generating" && vodStatus.step === "cues_loading";
+        if (vodStatus?.state !== "available" && !isCuesLoading) {
           this.teardown();
           return;
         }
-        speakerIdentified = vodStatus.speakerIdentifiable ?? true;
+        speakerIdentified = vodStatus?.state === "available" ? (vodStatus.speakerIdentifiable ?? true) : true;
       }
 
       // 빈 트랙으로 먼저 마운트한 뒤 스트리밍으로 cue를 채운다
