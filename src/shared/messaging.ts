@@ -5,11 +5,10 @@ export type RequestMessage =
   | { type: "GET_SUBTITLES"; platform: Platform; videoId: string }
   | { type: "GET_STATUS"; platform: Platform; videoId: string; language?: string }
   | { type: "START_GENERATION"; platform: Platform; videoId: string; force?: boolean; language?: string }
-  | { type: "START_STREAMING"; youtubeUrl: string; seekSec: number; serverUrl: string; keepCues?: boolean; trackKind?: string; language?: string }
+  | { type: "START_STREAMING"; youtubeUrl: string; seekSec: number; serverUrl: string; keepCues?: boolean; language?: string }
   | { type: "STOP_STREAMING" }
   | { type: "START_LIVE_STREAMING"; platform: Platform; videoId: string; captureStartVideoTime: number; videoTitle?: string; videoUrl?: string }
-  | { type: "STOP_LIVE_STREAMING" }
-  | { type: "GET_TRACK_KIND" };
+  | { type: "STOP_LIVE_STREAMING" };
 
 /** background → 요청자 응답 메시지 */
 export type ResponseMessage =
@@ -17,7 +16,6 @@ export type ResponseMessage =
   | { type: "STATUS_OK"; status: SubtitleStatus }
   | { type: "GENERATION_STARTED"; etaSeconds: number }
   | { type: "STREAMING_STARTED" }
-  | { type: "TRACK_KIND_OK"; trackKind?: string }
   | { type: "ERR"; error: string };
 
 /** background → content 브로드캐스트 */

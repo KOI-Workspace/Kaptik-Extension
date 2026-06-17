@@ -305,8 +305,6 @@ class SubtitleController {
       } else {
         // ── VOD 경로: YouTube WS 스트리밍 ──
         const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
-        const trackKind = await getYoutubeTrackKind();
-        console.info(`[Kaptik YT] trackKind=${trackKind ?? "없음"} (${videoId})`);
 
         const startStreaming = (seekSec: number, keepCues = false) => {
           this.resetSpeakerIdTimer();
@@ -316,7 +314,6 @@ class SubtitleController {
             seekSec,
             serverUrl: this.settings.serverUrl,
             keepCues,
-            trackKind,
             // this.settings는 onSettingsChanged가 즉시 업데이트하므로 항상 최신 언어
             language: this.settings.language,
           }).catch((err: unknown) => console.error("[Kaptik YT] START_STREAMING 실패:", err));
@@ -391,22 +388,6 @@ class SubtitleController {
     this.mounted?.handle.destroy();
     this.mounted = null;
   }
-}
-
-/**
- * YouTube 플레이어의 caption trackKind를 background를 통해 읽어온다.
- * background가 chrome.scripting.executeScript(world: MAIN)으로 CSP 우회 없이 실행한다.
- */
-async function getYoutubeTrackKind(): Promise<string | undefined> {
-  return new Promise((resolve) => {
-    chrome.runtime.sendMessage(
-      { type: "GET_TRACK_KIND" },
-      (res: { type: string; trackKind?: string } | undefined) => {
-        if (chrome.runtime.lastError || !res) { resolve(undefined); return; }
-        resolve(res.type === "TRACK_KIND_OK" ? res.trackKind : undefined);
-      },
-    );
-  });
 }
 
 // YouTube 페이지의 PO Token을 page context JS에서 읽어 background에 반환.

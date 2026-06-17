@@ -94,15 +94,11 @@ export async function createJob(opts: {
   authToken: string;
   url: string;
   targetLang: string;
-  trackKind?: string;
-  captionLang?: string;
   force?: boolean;
 }): Promise<{ jobId: string }> {
   const base = wsUrlToHttp(opts.serverUrl);
   const tokenParam = opts.authToken ? `?token=${encodeURIComponent(opts.authToken)}` : "";
   const body: Record<string, unknown> = { url: opts.url, target_lang: opts.targetLang };
-  if (opts.trackKind) body.track_kind = opts.trackKind;
-  if (opts.captionLang) body.caption_lang = opts.captionLang;
   if (opts.force) body.force = true;
   const res = await fetchJson<{ job_id: string }>(
     `${base}/jobs${tokenParam}`,

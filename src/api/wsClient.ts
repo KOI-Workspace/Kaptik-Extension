@@ -21,7 +21,6 @@ export class StreamingSession {
     private onError: (msg: string, code?: string) => void,
     private onDone?: (totalCues: number) => void,
     private onSpeakerIdentified?: (speakerId: string, name: string, member: Member) => void,
-    private trackKind?: string,
   ) {}
 
   connect(): void {
@@ -42,7 +41,6 @@ export class StreamingSession {
           target_lang: this.targetLang,
           seek_sec: this.seekSec,
           duration_sec: 0,
-          ...(this.trackKind ? { track_kind: this.trackKind } : {}),
         }),
       );
       console.info(`[Kaptik WS] 요청 전송: ${this.videoUrl}`);
