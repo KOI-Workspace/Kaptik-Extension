@@ -208,7 +208,7 @@ async function handleStartGeneration(
 
   let jobId: string;
   try {
-    const result = await createJob({ serverUrl, authToken, url, targetLang: language, trackKind });
+    const result = await createJob({ serverUrl, authToken, url, targetLang: language, trackKind, force: force || undefined });
     jobId = result.jobId;
   } catch (e) {
     console.error("[Kaptik BG] Job 생성 실패:", e);
