@@ -324,19 +324,20 @@ class SubtitleController {
         };
         this.startStreamingFn = startStreaming;
 
-        // 위에서 이미 available 확인했으므로 바로 시작
-        startStreaming(Math.floor(video.currentTime));
+        // 항상 0초부터 전체 cue를 요청 — video.currentTime 기반 표시는 useActiveIndex가 처리
+        startStreaming(0);
 
         let seekTimer: ReturnType<typeof setTimeout> | undefined;
-        // VOD는 cue가 DB에 사전 계산돼 있으므로 일시정지 중에도 WS 유지.
-        // YouTube 초기화 시 rapid pause→playing 이벤트가 발생해 세션이 끊기는 것을 방지.
-        // 재생 재개 시 onPlaying에서 새 seek 위치로 startStreaming을 호출하므로 WS가 갱신된다.
+        // 초기 로딩 완료(vodCuesReady) 전에는 playing/seeked 이벤트를 무시한다.
+        // 초기 WS가 완료되기 전에 새 WS 연결이 열리면 이전 연결이 끊겨 cue가 유실됨.
         const onPlaying = () => {
+          if (!this.mounted?.vodCuesReady) return;
           clearTimeout(seekTimer);
           startStreaming(Math.floor(video.currentTime), true);
         };
         const onSeeked = () => {
           if (video.paused) return;
+          if (!this.mounted?.vodCuesReady) return;
           clearTimeout(seekTimer);
           seekTimer = setTimeout(
             () => startStreaming(Math.floor(video.currentTime), true),
