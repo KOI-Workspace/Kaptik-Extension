@@ -86,6 +86,11 @@ export interface Messages {
   liveJustNow: string;
   liveAgoSec: (s: number) => string;
   liveAgoMin: (m: number) => string;
+  // alwaysCapture 플랫폼 (Weverse 등) 팝업 시작 버튼
+  liveNoneTitle: string;
+  liveNoneDesc: string;
+  startLiveBtn: string;
+  liveCapturingNote: string;
 }
 
 const MESSAGES: Record<UiLanguage, Messages> = {
@@ -148,6 +153,10 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     liveJustNow: "just now",
     liveAgoSec: (s) => `${s}s ago`,
     liveAgoMin: (m) => `${m}m ago`,
+    liveNoneTitle: "Live subtitles ready",
+    liveNoneDesc: "Start capturing to see real-time translations.",
+    startLiveBtn: "Start live subtitles",
+    liveCapturingNote: "Subtitles will appear shortly. You can close this popup.",
   },
   ja: {
     appTagline: "K-POP字幕",
@@ -209,6 +218,10 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     liveJustNow: "たった今",
     liveAgoSec: (s) => `${s}秒前`,
     liveAgoMin: (m) => `${m}分前`,
+    liveNoneTitle: "ライブ字幕の準備完了",
+    liveNoneDesc: "キャプチャを開始してリアルタイム翻訳を見る。",
+    startLiveBtn: "ライブ字幕を開始",
+    liveCapturingNote: "まもなく字幕が表示されます。このポップアップは閉じて構いません。",
   },
   "zh-CN": {
     appTagline: "K-pop字幕",
@@ -268,6 +281,10 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     liveJustNow: "刚刚",
     liveAgoSec: (s) => `${s}秒前`,
     liveAgoMin: (m) => `${m}分前`,
+    liveNoneTitle: "字幕准备就绪",
+    liveNoneDesc: "开始捕获以查看实时翻译。",
+    startLiveBtn: "开始实时字幕",
+    liveCapturingNote: "字幕即将出现。您可以关闭此弹窗。",
   },
   id: {
     appTagline: "Subtitle K-pop",
@@ -329,6 +346,10 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     liveJustNow: "baru saja",
     liveAgoSec: (s) => `${s}d lalu`,
     liveAgoMin: (m) => `${m}m lalu`,
+    liveNoneTitle: "Subtitle live siap",
+    liveNoneDesc: "Mulai menangkap untuk melihat terjemahan real-time.",
+    startLiveBtn: "Mulai subtitle live",
+    liveCapturingNote: "Subtitle akan segera muncul. Anda bisa menutup popup ini.",
   },
 };
 

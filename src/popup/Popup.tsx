@@ -26,6 +26,8 @@ interface Target {
   platform: Platform;
   videoId: string;
   isLive: boolean;
+  /** true = 팝업의 Start 버튼으로 오디오 캡처를 시작해야 하는 플랫폼 (Weverse 등) */
+  alwaysCapture: boolean;
 }
 
 /** 토글 스위치 */
@@ -60,6 +62,8 @@ export function Popup() {
   // 팝업이 열린 상태에서 generating → available 전환이 감지되면 설정창 대신 완료 안내 뷰를 표시
   const prevStatusStateRef = useRef<SubtitleStatus["state"]>("none");
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  // alwaysCapture 플랫폼(Weverse)에서 Start 버튼 클릭 시 tabId 전달을 위해 저장
+  const tabInfoRef = useRef<{ id: number; url: string; title: string } | null>(null);
   // 2초 폴링 interval ID (cleanup용)
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // poll 클로저에서 settings 최신값을 읽기 위한 ref (useEffect는 target 변경 시에만 재실행되므로 직접 참조 시 stale)
@@ -92,7 +96,18 @@ export function Popup() {
       const isLive = typeof stored[storageKey] === "boolean"
         ? (stored[storageKey] as boolean)
         : (adapter.isLive?.(url) ?? false);
-      const target: Target = { platform: adapter.platform, videoId, isLive };
+
+      // alwaysCapture 플랫폼(Weverse 등): Start 버튼 클릭 시 사용할 탭 정보를 미리 저장
+      if (adapter.alwaysCapture && tab?.id) {
+        tabInfoRef.current = { id: tab.id, url, title: tab.title ?? "" };
+      }
+
+      const target: Target = {
+        platform: adapter.platform,
+        videoId,
+        isLive,
+        alwaysCapture: adapter.alwaysCapture ?? false,
+      };
       if (active) setTarget(target);
     })();
 
@@ -151,6 +166,26 @@ export function Popup() {
           prev?.state === "generating" ? { ...prev, etaSeconds: eta } : prev
         );
       }
+    });
+  };
+
+  /**
+   * alwaysCapture 플랫폼(Weverse 등)의 Start 버튼 핸들러.
+   * 팝업 클릭으로 activeTab 권한이 부여된 상태에서 오디오 캡처를 시작한다.
+   */
+  const handleStartLive = () => {
+    if (!target || !tabInfoRef.current) return;
+    const { id: tabId, url: videoUrl, title: videoTitle } = tabInfoRef.current;
+    prevStatusStateRef.current = "generating";
+    setStatus({ state: "generating", etaSeconds: 0, progress: 0 });
+    void chrome.runtime.sendMessage({
+      type: "START_LIVE_STREAMING",
+      platform: target.platform,
+      videoId: target.videoId,
+      tabId,
+      captureStartVideoTime: 0,
+      videoTitle,
+      videoUrl,
     });
   };
 
@@ -258,11 +293,13 @@ export function Popup() {
       {target && !locked && status === undefined && <CheckingView t={t} />}
 
       {target && !locked && status?.state === "none" && (
-        <NoneView t={t} onGenerate={handleGenerate} />
+        target.alwaysCapture
+          ? <LiveNoneView t={t} onStart={handleStartLive} />
+          : <NoneView t={t} onGenerate={handleGenerate} />
       )}
 
       {target && !locked && status?.state === "generating" && (
-        <GeneratingView t={t} status={status} />
+        <GeneratingView t={t} status={status} liveCapturing={target.alwaysCapture} />
       )}
 
       {target && !locked && status?.state === "failed" && (
@@ -341,9 +378,11 @@ const STEP_LABELS: Record<string, string> = {
 export function GeneratingView({
   t,
   status,
+  liveCapturing = false,
 }: {
   t: Messages;
   status: { state: "generating"; etaSeconds: number; progress: number; step?: string };
+  liveCapturing?: boolean;
 }) {
   const stepLabel = status.step ? (STEP_LABELS[status.step] ?? null) : null;
 
@@ -352,7 +391,21 @@ export function GeneratingView({
       <div className="spinner" />
       <div className="state-title">{t.generatingTitle}</div>
       {stepLabel && <div className="state-step">{stepLabel}</div>}
-      <div className="state-note">{t.generatingNote}</div>
+      <div className="state-note">
+        {liveCapturing ? t.liveCapturingNote : t.generatingNote}
+      </div>
+    </div>
+  );
+}
+
+export function LiveNoneView({ t, onStart }: { t: Messages; onStart: () => void }) {
+  return (
+    <div className="state-block">
+      <div className="state-title">{t.liveNoneTitle}</div>
+      <div className="state-desc">{t.liveNoneDesc}</div>
+      <button type="button" className="btn-primary" onClick={onStart}>
+        {t.startLiveBtn}
+      </button>
     </div>
   );
 }

@@ -46,7 +46,10 @@
       "Bash(echo \"---exit:$?---\")",
       "Bash(kill 47186 47164)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5175)",
-      "Bash(python3 -m json.tool)"
+      "Bash(python3 -m json.tool)",
+      "Bash(git branch *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('permissions:', d.get\\('permissions',[]\\)\\); print\\('host_permissions:', d.get\\('host_permissions',[]\\)\\)\")",
+      "Bash(python3 *)"
     ]
   }
 }

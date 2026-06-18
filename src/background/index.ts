@@ -62,7 +62,7 @@ async function ensureOffscreen(): Promise<void> {
 
   await offscreen.createDocument({
     url: chrome.runtime.getURL("src/offscreen/index.html"),
-    reasons: ["AUDIO_CAPTURE"],
+    reasons: ["USER_MEDIA", "AUDIO_PLAYBACK"],
     justification: "Capture tab audio for live stream transcription",
   });
 }
@@ -102,6 +102,11 @@ async function handleGetStatus(
   videoId: string,
   msgLanguage?: string,
 ): Promise<ResponseMessage> {
+  // YouTube가 아닌 플랫폼(Weverse 등)은 오디오 캡처 경로를 사용하므로
+  // 이전 실패 기록 등 stale 상태가 있어도 none으로 처리한다
+  if (platform !== "youtube") {
+    return { type: "STATUS_OK", status: { state: "none" } };
+  }
   const settings = await getSettings();
   // 호출자가 language를 직접 전달하면 우선 사용 — storage 쓰기 완료 전 race condition 방지
   const language = msgLanguage ?? settings.language;
@@ -157,7 +162,10 @@ async function handleStartGeneration(
     return { type: "GENERATION_STARTED", etaSeconds };
   }
 
-  // YouTube만 지원 (타 플랫폼은 라이브 스트리밍 경로)
+  // YouTube만 VOD job 지원 — 다른 플랫폼은 라이브 스트리밍 경로를 사용해야 함
+  if (platform !== "youtube") {
+    return { type: "ERR", error: `${platform} VOD 자막 생성은 지원하지 않습니다` };
+  }
   const url = `https://www.youtube.com/watch?v=${videoId}`;
 
   let jobId: string;
@@ -279,12 +287,20 @@ async function handleStartLiveStreaming(
   videoTitle?: string,
   videoUrl?: string,
 ): Promise<ResponseMessage> {
+  console.info(`[Kaptik BG Live] handleStartLiveStreaming 진입 tabId=${tabId} platform=${platform} videoId=${videoId}`);
+
   const settings = await getSettings();
   const { serverUrl, language, devMode } = settings;
   const authToken = devMode ? "dev" : settings.authToken;
 
-  // 기존 라이브 세션 정리
+  // 같은 영상의 세션이 이미 활성화 중이면 재시작하지 않는다
+  // (버퍼링 후 playing 이벤트가 중복 발생해도 세션이 끊기지 않도록)
   const prev = liveSessions.get(tabId);
+  if (prev && prev.videoId === videoId) {
+    console.info(`[Kaptik BG Live] 이미 활성 세션 있음 (dedup) tabId=${tabId} videoId=${videoId}`);
+    return { type: "STREAMING_STARTED" };
+  }
+  // 다른 영상의 기존 세션 정리
   if (prev) {
     chrome.runtime.sendMessage({ type: "STOP_CAPTURE" }).catch(() => {});
     liveSessions.delete(tabId);
@@ -303,8 +319,13 @@ async function handleStartLiveStreaming(
 
   let streamId: string;
   try {
+    console.info(`[Kaptik BG Live] getMediaStreamId 호출 중 tabId=${tabId}`);
     streamId = await new Promise<string>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("getMediaStreamId timeout: 콜백이 5초 내에 응답하지 않음"));
+      }, 5000);
       chrome.tabCapture.getMediaStreamId({ targetTabId: tabId }, (id) => {
+        clearTimeout(timeout);
         if (chrome.runtime.lastError) {
           reject(new Error(chrome.runtime.lastError.message));
         } else {
@@ -312,6 +333,7 @@ async function handleStartLiveStreaming(
         }
       });
     });
+    console.info(`[Kaptik BG Live] getMediaStreamId 성공 streamId=${streamId.slice(0, 20)}...`);
   } catch (e) {
     liveSessions.delete(tabId);
     console.error("[Kaptik BG Live] tabCapture.getMediaStreamId 실패:", e);
@@ -566,7 +588,8 @@ chrome.runtime.onMessage.addListener(
             return { type: "ERR", error: "" };
           }
           case "START_LIVE_STREAMING": {
-            const tabId = sender.tab?.id;
+            // req.tabId: 팝업에서 보낸 경우 sender.tab이 없으므로 메시지에 명시
+            const tabId = req.tabId ?? sender.tab?.id;
             if (!tabId) return { type: "ERR", error: "tabId 없음" };
             return await handleStartLiveStreaming(
               tabId,
@@ -586,6 +609,7 @@ chrome.runtime.onMessage.addListener(
             return { type: "ERR", error: "알 수 없는 메시지" };
         }
       } catch (error) {
+        console.error("[Kaptik BG] 예기치 않은 오류:", error);
         return {
           type: "ERR",
           error: error instanceof Error ? error.message : String(error),

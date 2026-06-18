@@ -110,8 +110,9 @@ class SubtitleController {
             // 첫 로딩 완료 후 seek/재생 시 즉시 반영
             this.mounted.handle.updateCues(message.cues);
           } else {
-            // 최초 로딩 중: 버퍼에만 저장 (백엔드가 매번 전체 배열을 전송)
+            // 로딩 중에도 즉시 표시 — 백엔드가 매번 전체 정렬 배열을 전송하므로 순서 보장
             this.mounted.lastVodCues = message.cues;
+            this.mounted.handle.updateCues(message.cues);
           }
         }
       } else if (message?.type === "CUES_ALL_READY") {
@@ -187,10 +188,24 @@ class SubtitleController {
       // 같은 영상, 같은 패널이면 유지 (video 요소가 일시적으로 null이어도 세션 유지)
       // YouTube SPA가 video 요소를 새 인스턴스로 교체한 경우에만 재마운트
       const currentVideo = this.adapter.getVideoElement();
+      if (this.mounted?.videoId === videoId) {
+        // alwaysCapture 사이트(Weverse 등): React SPA가 DOM을 자주 교체하므로
+        // DOM 참조 비교 없이 videoId만 확인한다 (오디오 캡처는 탭 단위라 영향 없음)
+        if (this.adapter.alwaysCapture) return;
+        if (
+          this.mounted.panelContainer === panelContainer &&
+          (this.mounted.video === currentVideo || currentVideo == null)
+        ) {
+          return;
+        }
+      }
+      // alwaysCapture 사이트: SPA URL 변경으로 videoId가 달라져도
+      // 같은 video 요소가 재생 중이면 기존 세션 유지 (teardown 방지)
       if (
-        this.mounted?.videoId === videoId &&
-        this.mounted.panelContainer === panelContainer &&
-        (this.mounted.video === currentVideo || currentVideo == null)
+        this.adapter.alwaysCapture &&
+        this.mounted &&
+        currentVideo != null &&
+        currentVideo === this.mounted.video
       ) {
         return;
       }
@@ -214,22 +229,24 @@ class SubtitleController {
       }
 
       const isLive = this.adapter.isLive?.(location.href) ?? false;
+      // alwaysCapture: 위버스처럼 yt-dlp 추출이 불가능한 플랫폼은 라이브/VOD 무관하게 오디오 캡처 경로 사용
+      const useCapture = isLive || (this.adapter.alwaysCapture ?? false);
 
       // 팝업이 DOM 없이도 isLive를 읽을 수 있도록 저장
       void chrome.storage.local.set({
         [`kaptik:live:${this.adapter.platform}:${videoId}`]: isLive,
       });
 
-      // Basic 플랜: 라이브 스트림만 허용
-      if (!isLive && getEffectivePlan(this.settings) === "basic") {
+      // Basic 플랜: 라이브 스트림 및 오디오 캡처 경로 허용, YouTube VOD는 Pro 전용
+      if (!useCapture && getEffectivePlan(this.settings) === "basic") {
         this.teardown();
         return;
       }
 
-      // VOD는 생성이 끝나기 전(none/generating)에는 자막 UI를 띄우지 않는다.
+      // YouTube VOD는 생성이 끝나기 전(none/generating)에는 자막 UI를 띄우지 않는다.
       // 생성이 끝나면(완료/실패) SUBTITLES_READY 브로드캐스트가 evaluate()를 다시 호출한다.
       let speakerIdentified = true;
-      if (!isLive) {
+      if (!useCapture) {
         // this.settings.language는 onSettingsChanged가 즉시 업데이트하므로 항상 최신값
         // language를 직접 전달해 storage 쓰기 완료 전 race condition으로 old 언어가 체크되는 것을 방지
         const vodStatus = await requestStatus(this.adapter.platform, videoId, this.settings.language);
@@ -270,9 +287,13 @@ class SubtitleController {
       const handle = mountDisplay(container, panelContainer, video, emptyTrack, isLive);
       this.mounted = { videoId, panelContainer, handle, video, isLive, vodCuesReady: false, lastVodCues: [] };
 
-      if (isLive) {
+      if (useCapture) {
         // ── 라이브 경로: 탭 오디오 캡처 → 오프스크린 → 백엔드 WS ──
+        // 중복 시작 방지 플래그 — 버퍼링 후 playing 이벤트 중복 발생 대응
+        let streamingActive = false;
         const startLive = () => {
+          if (streamingActive) return;
+          streamingActive = true;
           this.resetSpeakerIdTimer();
           chrome.runtime.sendMessage({
             type: "START_LIVE_STREAMING",
@@ -288,20 +309,36 @@ class SubtitleController {
         };
         this.startStreamingFn = () => { /* 라이브는 재시작 없음 */ };
 
-        startLive();
+        if (this.adapter.alwaysCapture) {
+          // alwaysCapture 플랫폼(Weverse 등): 팝업 "Start" 버튼이 유일한 캡처 시작 트리거.
+          // pause/playing 이벤트로 자동 중단/재시작하지 않는다 — 버퍼링이나 잠깐 멈춤에도
+          // 캡처가 끊기지 않도록, 세션은 페이지 이탈 시까지 유지한다.
+          this.videoCleanup = () => {};
+        } else {
+          // YouTube 라이브: 자동 시작 + 일시정지/재생에 따라 캡처 중단/재개
+          startLive();
 
-        // 일시정지/재생에 따라 캡처 중단/재개
-        const onPaused = () => {
-          chrome.runtime.sendMessage({ type: "STOP_LIVE_STREAMING" }).catch(() => {});
-        };
-        const onPlaying = () => { startLive(); };
+          // 3초 딜레이: 짧은 버퍼링(pause → playing)을 진짜 정지로 오인해 재시작하는 것 방지
+          let pauseTimer: number | undefined;
+          const onPaused = () => {
+            clearTimeout(pauseTimer);
+            pauseTimer = window.setTimeout(() => {
+              streamingActive = false;
+              chrome.runtime.sendMessage({ type: "STOP_LIVE_STREAMING" }).catch(() => {});
+            }, 3000);
+          };
+          const onPlaying = () => {
+            clearTimeout(pauseTimer);
+            startLive();
+          };
 
-        video.addEventListener("pause", onPaused);
-        video.addEventListener("playing", onPlaying);
-        this.videoCleanup = () => {
-          video.removeEventListener("pause", onPaused);
-          video.removeEventListener("playing", onPlaying);
-        };
+          video.addEventListener("pause", onPaused);
+          video.addEventListener("playing", onPlaying);
+          this.videoCleanup = () => {
+            video.removeEventListener("pause", onPaused);
+            video.removeEventListener("playing", onPlaying);
+          };
+        }
       } else {
         // ── VOD 경로: YouTube WS 스트리밍 ──
         const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;

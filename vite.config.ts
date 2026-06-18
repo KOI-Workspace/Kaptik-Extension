@@ -23,5 +23,11 @@ export default defineConfig(({ mode }) => ({
   build: {
     // 확장 프로그램 디버깅을 위해 소스맵 유지
     sourcemap: true,
+    rollupOptions: {
+      input: {
+        // offscreen 문서는 CRXJS가 자동 감지하지 못하므로 명시
+        offscreen: "src/offscreen/index.html",
+      },
+    },
   },
 }));

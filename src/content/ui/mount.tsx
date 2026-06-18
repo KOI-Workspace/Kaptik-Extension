@@ -73,14 +73,22 @@ export function mountDisplay(
   const panelDocked = panelContainer != null;
   let panelHost: HTMLDivElement | null = null;
   let panelMount: HTMLDivElement | null = null;
+  // VOD 정상 트랙은 첫 자막 도착 시 삽입 — 생성 중 또는 스트리밍 대기 중에 빈 패널이 노출되는 것을 방지
+  let panelInserted = false;
+
   if (panelContainer) {
     const panel = createShadowMount();
     panel.host.id = PANEL_HOST_ID;
     // 사이드 컬럼의 일반 블록으로 흐르게 둔다 (관련영상 위에 위치)
     panel.host.style.cssText = "display:block;border:0;margin:0;padding:0;";
-    panelContainer.prepend(panel.host);
     panelHost = panel.host;
     panelMount = panel.mount;
+
+    // 라이브이거나 에러 트랙이면 즉시 삽입, VOD 정상 트랙은 updateCues에서 처리
+    if (isLive || track.error) {
+      panelContainer.prepend(panelHost);
+      panelInserted = true;
+    }
   }
 
   // useState setters는 렌더 간 stable이므로 클로저 변수에 할당해도 안전하다.
@@ -121,6 +129,11 @@ export function mountDisplay(
       panelHost?.remove();
     },
     updateCues(cues) {
+      // VOD: 첫 자막 도착 시 패널을 DOM에 삽입 (그 전까지는 사이드 컬럼에 빈 박스가 노출되지 않음)
+      if (!panelInserted && panelHost && panelContainer && cues.length > 0) {
+        panelContainer.prepend(panelHost);
+        panelInserted = true;
+      }
       _setCues?.(cues);
     },
     updateMembers(newEntries) {
