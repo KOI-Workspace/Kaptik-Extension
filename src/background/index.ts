@@ -157,7 +157,10 @@ async function handleStartGeneration(
     return { type: "GENERATION_STARTED", etaSeconds };
   }
 
-  // YouTube만 지원 (타 플랫폼은 라이브 스트리밍 경로)
+  // YouTube만 VOD job 지원 — 다른 플랫폼은 라이브 스트리밍 경로를 사용해야 함
+  if (platform !== "youtube") {
+    return { type: "ERR", error: `${platform} VOD 자막 생성은 지원하지 않습니다` };
+  }
   const url = `https://www.youtube.com/watch?v=${videoId}`;
 
   let jobId: string;

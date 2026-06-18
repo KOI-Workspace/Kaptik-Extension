@@ -9,6 +9,8 @@ import { findVideoBox, findDockColumn } from "./heuristics";
  */
 export const weverseAdapter: SiteAdapter = {
   platform: "weverse",
+  // 위버스는 yt-dlp 음성 추출이 불가능해 라이브/VOD 모두 오디오 캡처 경로를 사용한다
+  alwaysCapture: true,
 
   matches(url) {
     try {

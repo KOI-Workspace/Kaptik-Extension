@@ -28,4 +28,9 @@ export interface SiteAdapter {
   getPanelContainer(): HTMLElement | null;
   /** 현재 URL이 라이브 스트림인지 여부 (미구현 어댑터는 항상 false). */
   isLive?(url: string): boolean;
+  /**
+   * true이면 URL 타입(라이브/VOD)에 관계없이 항상 오디오 캡처 경로를 사용한다.
+   * Weverse처럼 yt-dlp로 음성을 추출할 수 없는 플랫폼에 사용.
+   */
+  alwaysCapture?: boolean;
 }
