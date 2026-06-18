@@ -62,7 +62,7 @@ async function ensureOffscreen(): Promise<void> {
 
   await offscreen.createDocument({
     url: chrome.runtime.getURL("src/offscreen/index.html"),
-    reasons: ["AUDIO_CAPTURE"],
+    reasons: ["USER_MEDIA", "AUDIO_PLAYBACK"],
     justification: "Capture tab audio for live stream transcription",
   });
 }
@@ -287,6 +287,8 @@ async function handleStartLiveStreaming(
   videoTitle?: string,
   videoUrl?: string,
 ): Promise<ResponseMessage> {
+  console.info(`[Kaptik BG Live] handleStartLiveStreaming 진입 tabId=${tabId} platform=${platform} videoId=${videoId}`);
+
   const settings = await getSettings();
   const { serverUrl, language, devMode } = settings;
   const authToken = devMode ? "dev" : settings.authToken;
@@ -295,6 +297,7 @@ async function handleStartLiveStreaming(
   // (버퍼링 후 playing 이벤트가 중복 발생해도 세션이 끊기지 않도록)
   const prev = liveSessions.get(tabId);
   if (prev && prev.videoId === videoId) {
+    console.info(`[Kaptik BG Live] 이미 활성 세션 있음 (dedup) tabId=${tabId} videoId=${videoId}`);
     return { type: "STREAMING_STARTED" };
   }
   // 다른 영상의 기존 세션 정리
@@ -316,8 +319,13 @@ async function handleStartLiveStreaming(
 
   let streamId: string;
   try {
+    console.info(`[Kaptik BG Live] getMediaStreamId 호출 중 tabId=${tabId}`);
     streamId = await new Promise<string>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("getMediaStreamId timeout: 콜백이 5초 내에 응답하지 않음"));
+      }, 5000);
       chrome.tabCapture.getMediaStreamId({ targetTabId: tabId }, (id) => {
+        clearTimeout(timeout);
         if (chrome.runtime.lastError) {
           reject(new Error(chrome.runtime.lastError.message));
         } else {
@@ -325,6 +333,7 @@ async function handleStartLiveStreaming(
         }
       });
     });
+    console.info(`[Kaptik BG Live] getMediaStreamId 성공 streamId=${streamId.slice(0, 20)}...`);
   } catch (e) {
     liveSessions.delete(tabId);
     console.error("[Kaptik BG Live] tabCapture.getMediaStreamId 실패:", e);
@@ -600,6 +609,7 @@ chrome.runtime.onMessage.addListener(
             return { type: "ERR", error: "알 수 없는 메시지" };
         }
       } catch (error) {
+        console.error("[Kaptik BG] 예기치 않은 오류:", error);
         return {
           type: "ERR",
           error: error instanceof Error ? error.message : String(error),
