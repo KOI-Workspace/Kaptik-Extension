@@ -20,6 +20,8 @@ let activeStream: MediaStream | null = null;
 let activeWs: WebSocket | null = null;
 let audioCtx: AudioContext | null = null;
 let scriptProcessor: ScriptProcessorNode | null = null;
+// 탭 캡처 시 원본 탭이 음소거되므로 Audio 요소로 원음질 복원
+let playbackEl: HTMLAudioElement | null = null;
 
 async function startCapture(msg: CaptureTabMsg): Promise<void> {
   stopCapture();
