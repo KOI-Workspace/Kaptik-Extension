@@ -579,7 +579,8 @@ chrome.runtime.onMessage.addListener(
             return { type: "ERR", error: "" };
           }
           case "START_LIVE_STREAMING": {
-            const tabId = sender.tab?.id;
+            // req.tabId: 팝업에서 보낸 경우 sender.tab이 없으므로 메시지에 명시
+            const tabId = req.tabId ?? sender.tab?.id;
             if (!tabId) return { type: "ERR", error: "tabId 없음" };
             return await handleStartLiveStreaming(
               tabId,
