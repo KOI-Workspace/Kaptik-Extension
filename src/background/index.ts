@@ -291,8 +291,13 @@ async function handleStartLiveStreaming(
   const { serverUrl, language, devMode } = settings;
   const authToken = devMode ? "dev" : settings.authToken;
 
-  // 기존 라이브 세션 정리
+  // 같은 영상의 세션이 이미 활성화 중이면 재시작하지 않는다
+  // (버퍼링 후 playing 이벤트가 중복 발생해도 세션이 끊기지 않도록)
   const prev = liveSessions.get(tabId);
+  if (prev && prev.videoId === videoId) {
+    return { type: "STREAMING_STARTED" };
+  }
+  // 다른 영상의 기존 세션 정리
   if (prev) {
     chrome.runtime.sendMessage({ type: "STOP_CAPTURE" }).catch(() => {});
     liveSessions.delete(tabId);
