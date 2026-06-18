@@ -199,6 +199,16 @@ class SubtitleController {
           return;
         }
       }
+      // alwaysCapture 사이트: SPA URL 변경으로 videoId가 달라져도
+      // 같은 video 요소가 재생 중이면 기존 세션 유지 (teardown 방지)
+      if (
+        this.adapter.alwaysCapture &&
+        this.mounted &&
+        currentVideo != null &&
+        currentVideo === this.mounted.video
+      ) {
+        return;
+      }
 
       // (재)마운트 준비
       this.teardown();
@@ -279,7 +289,11 @@ class SubtitleController {
 
       if (useCapture) {
         // ── 라이브 경로: 탭 오디오 캡처 → 오프스크린 → 백엔드 WS ──
+        // 중복 시작 방지 플래그 — 버퍼링 후 playing 이벤트 중복 발생 대응
+        let streamingActive = false;
         const startLive = () => {
+          if (streamingActive) return;
+          streamingActive = true;
           this.resetSpeakerIdTimer();
           chrome.runtime.sendMessage({
             type: "START_LIVE_STREAMING",
@@ -295,13 +309,27 @@ class SubtitleController {
         };
         this.startStreamingFn = () => { /* 라이브는 재시작 없음 */ };
 
-        startLive();
+        // alwaysCapture 플랫폼(Weverse 등)은 팝업 열기가 캡처 시작의 트리거.
+        // tabCapture.getMediaStreamId는 extension이 invoke된 탭(팝업 클릭)에서만 허용되므로,
+        // 자동 시작하면 항상 권한 오류가 발생한다.
+        if (!this.adapter.alwaysCapture) {
+          startLive();
+        }
 
         // 일시정지/재생에 따라 캡처 중단/재개
+        // 3초 딜레이: 짧은 버퍼링(pause → playing)을 진짜 정지로 오인해 재시작하는 것 방지
+        let pauseTimer: number | undefined;
         const onPaused = () => {
-          chrome.runtime.sendMessage({ type: "STOP_LIVE_STREAMING" }).catch(() => {});
+          clearTimeout(pauseTimer);
+          pauseTimer = window.setTimeout(() => {
+            streamingActive = false;
+            chrome.runtime.sendMessage({ type: "STOP_LIVE_STREAMING" }).catch(() => {});
+          }, 3000);
         };
-        const onPlaying = () => { startLive(); };
+        const onPlaying = () => {
+          clearTimeout(pauseTimer);
+          startLive();
+        };
 
         video.addEventListener("pause", onPaused);
         video.addEventListener("playing", onPlaying);
