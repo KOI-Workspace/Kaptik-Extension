@@ -110,8 +110,9 @@ class SubtitleController {
             // 첫 로딩 완료 후 seek/재생 시 즉시 반영
             this.mounted.handle.updateCues(message.cues);
           } else {
-            // 최초 로딩 중: 버퍼에만 저장 (백엔드가 매번 전체 배열을 전송)
+            // 로딩 중에도 즉시 표시 — 백엔드가 매번 전체 정렬 배열을 전송하므로 순서 보장
             this.mounted.lastVodCues = message.cues;
+            this.mounted.handle.updateCues(message.cues);
           }
         }
       } else if (message?.type === "CUES_ALL_READY") {
