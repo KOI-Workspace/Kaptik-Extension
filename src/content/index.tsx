@@ -215,22 +215,24 @@ class SubtitleController {
       }
 
       const isLive = this.adapter.isLive?.(location.href) ?? false;
+      // alwaysCapture: 위버스처럼 yt-dlp 추출이 불가능한 플랫폼은 라이브/VOD 무관하게 오디오 캡처 경로 사용
+      const useCapture = isLive || (this.adapter.alwaysCapture ?? false);
 
       // 팝업이 DOM 없이도 isLive를 읽을 수 있도록 저장
       void chrome.storage.local.set({
         [`kaptik:live:${this.adapter.platform}:${videoId}`]: isLive,
       });
 
-      // Basic 플랜: 라이브 스트림만 허용
-      if (!isLive && getEffectivePlan(this.settings) === "basic") {
+      // Basic 플랜: 라이브 스트림 및 오디오 캡처 경로 허용, YouTube VOD는 Pro 전용
+      if (!useCapture && getEffectivePlan(this.settings) === "basic") {
         this.teardown();
         return;
       }
 
-      // VOD는 생성이 끝나기 전(none/generating)에는 자막 UI를 띄우지 않는다.
+      // YouTube VOD는 생성이 끝나기 전(none/generating)에는 자막 UI를 띄우지 않는다.
       // 생성이 끝나면(완료/실패) SUBTITLES_READY 브로드캐스트가 evaluate()를 다시 호출한다.
       let speakerIdentified = true;
-      if (!isLive) {
+      if (!useCapture) {
         // this.settings.language는 onSettingsChanged가 즉시 업데이트하므로 항상 최신값
         // language를 직접 전달해 storage 쓰기 완료 전 race condition으로 old 언어가 체크되는 것을 방지
         const vodStatus = await requestStatus(this.adapter.platform, videoId, this.settings.language);
@@ -271,7 +273,7 @@ class SubtitleController {
       const handle = mountDisplay(container, panelContainer, video, emptyTrack, isLive);
       this.mounted = { videoId, panelContainer, handle, video, isLive, vodCuesReady: false, lastVodCues: [] };
 
-      if (isLive) {
+      if (useCapture) {
         // ── 라이브 경로: 탭 오디오 캡처 → 오프스크린 → 백엔드 WS ──
         const startLive = () => {
           this.resetSpeakerIdTimer();
