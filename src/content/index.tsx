@@ -188,8 +188,19 @@ class SubtitleController {
     await this.evaluate();
   }
 
+  /**
+   * 확장 컨텍스트가 살아있는지 확인한다.
+   * 개발 중 확장을 재로딩하면 이미 떠 있던 탭의 콘텐츠 스크립트는 컨텍스트가 끊겨
+   * chrome.* 호출이 "Extension context invalidated"로 동기 throw한다. 이때 조용히 멈춘다.
+   */
+  private isContextAlive(): boolean {
+    return Boolean(chrome.runtime?.id);
+  }
+
   /** 현재 상태에 맞춰 자막 UI를 표시/숨김 처리한다. */
   private async evaluate() {
+    // 컨텍스트가 죽었으면(확장 재로딩 등) 아무 작업도 하지 않는다 — 에러 폭주 방지
+    if (!this.isContextAlive()) return;
     // 이미 평가 중이면 끼어들지 않는다 (긴 await가 취소되는 무한 루프 방지)
     if (this.evaluating) return;
     this.evaluating = true;
@@ -466,9 +477,14 @@ class SubtitleController {
     this.videoCleanup?.();
     this.videoCleanup = null;
     this.startStreamingFn = null;
-    if (this.mounted) {
-      chrome.runtime.sendMessage({ type: "STOP_STREAMING" }).catch(() => {});
-      chrome.runtime.sendMessage({ type: "STOP_LIVE_STREAMING" }).catch(() => {});
+    // 컨텍스트가 살아있을 때만 메시지 전송 — 죽은 컨텍스트에서는 sendMessage가 동기 throw한다
+    if (this.mounted && this.isContextAlive()) {
+      try {
+        chrome.runtime.sendMessage({ type: "STOP_STREAMING" }).catch(() => {});
+        chrome.runtime.sendMessage({ type: "STOP_LIVE_STREAMING" }).catch(() => {});
+      } catch {
+        // 컨텍스트 무효화로 인한 동기 throw 무시
+      }
     }
     this.mounted?.handle.destroy();
     this.mounted = null;
