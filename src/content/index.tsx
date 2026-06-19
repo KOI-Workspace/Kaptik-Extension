@@ -325,6 +325,8 @@ class SubtitleController {
       };
       const handle = mountDisplay(container, panelContainer, video, emptyTrack, isLive);
       this.mounted = { videoId, panelContainer, handle, video, isLive, vodCuesReady: false, lastVodCues: [] };
+      // [진단] 패널 컬럼을 마운트 시점에 찾았는지
+      console.info(`[Kaptik] 패널 컬럼 ${panelContainer ? "찾음 → 즉시 도킹" : "못 찾음 → pending, 폴링 시작"} (showPanel=${this.settings.showPanel})`);
       // 패널 컬럼을 아직 못 찾았으면 잠시 폴링해 늦게 나타나면 도킹 (오버레이 폴백 방지)
       if (!panelContainer) this.watchPanelDock(handle);
 
@@ -461,6 +463,8 @@ class SubtitleController {
     void waitFor(() => this.adapter.getPanelContainer(), 5000).then((column) => {
       // 그새 teardown/재마운트됐으면 무시 (현재 세션과 동일한 핸들일 때만 적용)
       if (this.mounted?.handle !== handle) return;
+      // [진단] 폴링 결과
+      console.info(`[Kaptik] watchPanelDock 결과: ${column ? "컬럼 발견 → dockPanel" : "5초 내 못 찾음 → overlay 폴백"}`);
       if (column) {
         handle.dockPanel(column);
         this.mounted.panelContainer = column;

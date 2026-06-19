@@ -49,6 +49,8 @@ function climbToColumnRoot(el: HTMLElement, video: HTMLVideoElement): HTMLElemen
  * - 좁은 화면: 영상 바로 아래의 컬럼
  * 둘 다 영상을 가리지 않고 컬럼 콘텐츠를 아래로 밀어 넣는 위치다.
  */
+let _dockDebugCount = 0;
+
 export function findDockColumn(video: HTMLVideoElement): HTMLElement | null {
   const vRect = video.getBoundingClientRect();
   if (vRect.width === 0) return null;
@@ -67,6 +69,26 @@ export function findDockColumn(video: HTMLVideoElement): HTMLElement | null {
       r.height >= 320
     );
   });
+
+  // [진단] 컬럼 후보를 한 번만 덤프 — 어떤 요소가 잘못 선택되는지 파악용
+  if (_dockDebugCount < 1 && rightCol.length > 0) {
+    _dockDebugCount++;
+    const fmt = (el: HTMLElement) => {
+      const r = el.getBoundingClientRect();
+      return `<${el.tagName.toLowerCase()} class="${el.className}"> ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}`;
+    };
+    console.info(`[Kaptik] video rect: ${Math.round(vRect.left)},${Math.round(vRect.top)} ${Math.round(vRect.width)}x${Math.round(vRect.height)}`);
+    console.info(`[Kaptik] rightCol 후보 ${rightCol.length}개:`);
+    rightCol.forEach((el) => console.info(`  ${fmt(el)}`));
+    // "LIVE 채팅" 텍스트를 가진 요소(실제 채팅 패널)의 조상 체인도 덤프
+    const chatHead = all.find((el) => /채팅|채팅\s*다시보기|LIVE\s*채팅/.test(el.textContent ?? "") && el.getBoundingClientRect().width < 500);
+    if (chatHead) {
+      console.info(`[Kaptik] '채팅' 텍스트 요소 체인:`);
+      let node: HTMLElement | null = chatHead;
+      for (let i = 0; node && i < 6; i++, node = node.parentElement) console.info(`  ${fmt(node)}`);
+    }
+  }
+
   if (rightCol.length > 0) {
     rightCol.sort(
       (a, b) =>

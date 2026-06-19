@@ -163,6 +163,10 @@ export function mountDisplay(
       if (!firstCueSeen && cues.length > 0) {
         firstCueSeen = true;
         attachHost();
+        // [진단] 첫 자막 도착 시 패널 부착 결과
+        console.info(
+          `[Kaptik] 첫 자막 도착 → 패널 부착: inserted=${panelInserted}, host=${!!panelHost}, container=${!!currentContainer}, setCues=${!!_setCues}`,
+        );
       }
       _setCues?.(cues);
     },
@@ -177,6 +181,20 @@ export function mountDisplay(
       attachHost();
       _setPanelMount?.(panelMount);
       _setPanelMode?.("docked");
+      // [진단] 도킹한 컬럼 정보 + 우리 패널이 DOM에 살아있는지 (즉시 / 2초 후)
+      const c = container as HTMLElement;
+      const r = c.getBoundingClientRect();
+      console.info(
+        `[Kaptik] dockPanel: <${c.tagName.toLowerCase()} class="${c.className}"> ` +
+          `rect=${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} | ` +
+          `host.isConnected=${panelHost?.isConnected}`,
+      );
+      setTimeout(() => {
+        console.info(
+          `[Kaptik] dockPanel 2초 후: host.isConnected=${panelHost?.isConnected} ` +
+            `(false면 위버스가 우리 패널을 지운 것)`,
+        );
+      }, 2000);
     },
     fallbackToOverlay() {
       // pending 상태에서 끝내 컬럼을 못 찾았을 때만 오버레이로 전환
