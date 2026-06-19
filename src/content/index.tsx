@@ -188,19 +188,8 @@ class SubtitleController {
     await this.evaluate();
   }
 
-  /**
-   * 확장 컨텍스트가 살아있는지 확인한다.
-   * 개발 중 확장을 재로딩하면 이미 떠 있던 탭의 콘텐츠 스크립트는 컨텍스트가 끊겨
-   * chrome.* 호출이 "Extension context invalidated"로 동기 throw한다. 이때 조용히 멈춘다.
-   */
-  private isContextAlive(): boolean {
-    return Boolean(chrome.runtime?.id);
-  }
-
   /** 현재 상태에 맞춰 자막 UI를 표시/숨김 처리한다. */
   private async evaluate() {
-    // 컨텍스트가 죽었으면(확장 재로딩 등) 아무 작업도 하지 않는다 — 에러 폭주 방지
-    if (!this.isContextAlive()) return;
     // 이미 평가 중이면 끼어들지 않는다 (긴 await가 취소되는 무한 루프 방지)
     if (this.evaluating) return;
     this.evaluating = true;
@@ -300,7 +289,6 @@ class SubtitleController {
           };
           const handle = mountDisplay(container, panelContainer, video, errorTrack, false);
           this.mounted = { videoId, panelContainer, handle, video, isLive: false, vodCuesReady: false, lastVodCues: [] };
-          if (!panelContainer) this.watchPanelDock(handle);
           console.info(`[Kaptik] 자막 생성 불가 (${videoId}): ${vodStatus.reason ?? "unknown"}`);
           return;
         }
@@ -325,10 +313,6 @@ class SubtitleController {
       };
       const handle = mountDisplay(container, panelContainer, video, emptyTrack, isLive);
       this.mounted = { videoId, panelContainer, handle, video, isLive, vodCuesReady: false, lastVodCues: [] };
-      // [진단] 패널 컬럼을 마운트 시점에 찾았는지
-      console.info(`[Kaptik] 패널 컬럼 ${panelContainer ? "찾음 → 즉시 도킹" : "못 찾음 → pending, 폴링 시작"} (showPanel=${this.settings.showPanel})`);
-      // 패널 컬럼을 아직 못 찾았으면 잠시 폴링해 늦게 나타나면 도킹 (오버레이 폴백 방지)
-      if (!panelContainer) this.watchPanelDock(handle);
 
       if (useCapture) {
         // ── 라이브 경로: 탭 오디오 캡처 → 오프스크린 → 백엔드 WS ──
@@ -454,26 +438,6 @@ class SubtitleController {
   }
 
   /** 표시 중인 자막 UI와 스트리밍 세션을 제거한다. */
-  /**
-   * 패널 컬럼이 영상보다 늦게 렌더되는 SPA(위버스 등) 대응.
-   * 마운트 시점에 컬럼을 못 찾았을 때 잠시 폴링해 나타나면 도킹하고,
-   * 끝내 없으면(좁은 화면 등) 오버레이로 폴백한다.
-   */
-  private watchPanelDock(handle: DisplayHandle) {
-    void waitFor(() => this.adapter.getPanelContainer(), 5000).then((column) => {
-      // 그새 teardown/재마운트됐으면 무시 (현재 세션과 동일한 핸들일 때만 적용)
-      if (this.mounted?.handle !== handle) return;
-      // [진단] 폴링 결과
-      console.info(`[Kaptik] watchPanelDock 결과: ${column ? "컬럼 발견 → dockPanel" : "5초 내 못 찾음 → overlay 폴백"}`);
-      if (column) {
-        handle.dockPanel(column);
-        this.mounted.panelContainer = column;
-      } else {
-        handle.fallbackToOverlay();
-      }
-    });
-  }
-
   private teardown() {
     clearTimeout(this.speakerIdTimer);
     this.speakerIdTimer = undefined;
@@ -481,14 +445,9 @@ class SubtitleController {
     this.videoCleanup?.();
     this.videoCleanup = null;
     this.startStreamingFn = null;
-    // 컨텍스트가 살아있을 때만 메시지 전송 — 죽은 컨텍스트에서는 sendMessage가 동기 throw한다
-    if (this.mounted && this.isContextAlive()) {
-      try {
-        chrome.runtime.sendMessage({ type: "STOP_STREAMING" }).catch(() => {});
-        chrome.runtime.sendMessage({ type: "STOP_LIVE_STREAMING" }).catch(() => {});
-      } catch {
-        // 컨텍스트 무효화로 인한 동기 throw 무시
-      }
+    if (this.mounted) {
+      chrome.runtime.sendMessage({ type: "STOP_STREAMING" }).catch(() => {});
+      chrome.runtime.sendMessage({ type: "STOP_LIVE_STREAMING" }).catch(() => {});
     }
     this.mounted?.handle.destroy();
     this.mounted = null;
