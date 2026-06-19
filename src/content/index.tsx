@@ -18,6 +18,9 @@ import type { SubtitleCue, SubtitleTrack } from "@/types/subtitle";
  * 현재 사이트 어댑터를 찾고, "자막 표시 ON + 상태 available" 조건을 만족할 때만
  * 영상 위에 자막 UI(가운데 오버레이 + 우측 패널)를 마운트한다.
  */
+/** 팝업의 GET_VIDEO_TIME 요청에 응답하기 위한 모듈 스코프 컨트롤러 참조 */
+let activeController: SubtitleController | null = null;
+
 async function bootstrap() {
   // 주입 여부 확인용 — 어댑터 매칭 전에 무조건 찍는다
   console.info("[Kaptik] content script 로드됨:", location.href);
@@ -28,6 +31,7 @@ async function bootstrap() {
   }
   console.info(`[Kaptik] ${adapter.platform} 페이지 감지`);
   const controller = new SubtitleController(adapter);
+  activeController = controller;
   await controller.start();
 }
 
@@ -55,6 +59,13 @@ class SubtitleController {
   private speakerIdentifiedOnce = false;
 
   constructor(private adapter: SiteAdapter) {}
+
+  /** 현재 마운트된 영상의 재생 위치(초). 없으면 페이지의 video 폴백, 그래도 없으면 0. */
+  getCurrentVideoTime(): number {
+    if (this.mounted) return Math.floor(this.mounted.video.currentTime);
+    const v = document.querySelector("video");
+    return v ? Math.floor(v.currentTime) : 0;
+  }
 
   async start() {
     this.settings = await getSettings();
@@ -429,6 +440,15 @@ class SubtitleController {
 
 // YouTube 페이지의 PO Token을 page context JS에서 읽어 background에 반환.
 // content script는 isolated world이므로 <script> 주입 + postMessage 방식 사용.
+// 팝업이 캡처 시작 앵커로 쓸 현재 재생 위치(초)를 요청
+chrome.runtime.onMessage.addListener(
+  (message: unknown, _sender, sendResponse) => {
+    if ((message as Record<string, unknown>)?.type !== "GET_VIDEO_TIME") return;
+    sendResponse(activeController?.getCurrentVideoTime() ?? 0);
+    return true;
+  },
+);
+
 chrome.runtime.onMessage.addListener(
   (message: unknown, _sender, sendResponse) => {
     if ((message as Record<string, unknown>)?.type !== "GET_PO_TOKEN") return;

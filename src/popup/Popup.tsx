@@ -173,17 +173,25 @@ export function Popup() {
    * alwaysCapture 플랫폼(Weverse 등)의 Start 버튼 핸들러.
    * 팝업 클릭으로 activeTab 권한이 부여된 상태에서 오디오 캡처를 시작한다.
    */
-  const handleStartLive = () => {
+  const handleStartLive = async () => {
     if (!target || !tabInfoRef.current) return;
     const { id: tabId, url: videoUrl, title: videoTitle } = tabInfoRef.current;
     prevStatusStateRef.current = "generating";
     setStatus({ state: "generating", etaSeconds: 0, progress: 0 });
+    // content script에서 실제 재생 위치를 받아 앵커로 사용 (실패 시 0 폴백)
+    let captureStartVideoTime = 0;
+    try {
+      const t = await chrome.tabs.sendMessage(tabId, { type: "GET_VIDEO_TIME" });
+      if (typeof t === "number" && Number.isFinite(t)) captureStartVideoTime = t;
+    } catch {
+      /* content script 미응답 → 0 사용 */
+    }
     void chrome.runtime.sendMessage({
       type: "START_LIVE_STREAMING",
       platform: target.platform,
       videoId: target.videoId,
       tabId,
-      captureStartVideoTime: 0,
+      captureStartVideoTime,
       videoTitle,
       videoUrl,
     });

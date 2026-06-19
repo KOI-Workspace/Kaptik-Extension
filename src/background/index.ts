@@ -351,6 +351,7 @@ async function handleStartLiveStreaming(
     targetLang: language,
     videoTitle,
     videoUrl,
+    captureStartSec: captureStartVideoTime,
   }).catch(() => {});
 
   console.info(`[Kaptik BG Live] 라이브 스트리밍 시작 tabId=${tabId} platform=${platform} sessionId=${sessionId}`);
@@ -374,8 +375,6 @@ function handleStopLiveStreaming(tabId: number): void {
 function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
   const session = liveSessions.get(tabId);
   if (!session) return;
-
-  const offset = session.captureStartVideoTime;
 
   if (data.type === "speaker_identified") {
     const speakerId = String(data.speaker ?? "");
@@ -407,8 +406,9 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
     if (!p) return;
     session.pending.delete(ts);
 
-    // cached cue는 룸 생성 시점 기준 절대 ts이므로 captureStartVideoTime offset 적용 안 함
-    const start = p.cached ? ts / 1000 : ts / 1000 + offset;
+    // 서버가 캡처 시작 위치(앵커)를 더해 콘텐츠 절대 ts로 보내주므로 그대로 사용.
+    // cached/non-cached 모두 동일 기준 → 클라이언트에서 offset 추가 안 함(이중 적용 방지).
+    const start = ts / 1000;
     const cue: SubtitleCue = {
       start,
       end: start + 6,

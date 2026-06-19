@@ -14,6 +14,8 @@ interface CaptureTabMsg {
   targetLang: string;
   videoTitle?: string;
   videoUrl?: string;
+  /** 캡처 시작 시점의 영상 재생 위치(초) — 서버가 자막 ts 앵커로 사용 */
+  captureStartSec?: number;
 }
 
 let activeStream: MediaStream | null = null;
@@ -68,6 +70,7 @@ async function startCapture(msg: CaptureTabMsg): Promise<void> {
         target_lang: msg.targetLang,
         video_title: msg.videoTitle ?? null,
         video_url: msg.videoUrl ?? null,
+        capture_start_sec: msg.captureStartSec ?? 0,
       }),
     );
 
