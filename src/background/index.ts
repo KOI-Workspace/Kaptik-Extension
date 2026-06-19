@@ -693,8 +693,14 @@ chrome.runtime.onMessage.addListener(
             return { type: "ERR", error: "" };
           }
           case "IS_LIVE_ACTIVE": {
-            const tabId = sender.tab?.id;
+            // 팝업은 sender.tab이 없으므로 메시지의 tabId를 우선 사용
+            const tabId = req.tabId ?? sender.tab?.id;
             return { type: "LIVE_ACTIVE", active: tabId != null && liveSessions.has(tabId) };
+          }
+          case "SET_LIVE_LANG": {
+            // offscreen이 활성 WS로 set_lang을 보내도록 전달 (이후 자막부터 새 언어)
+            chrome.runtime.sendMessage({ type: "SET_LANG", language: req.language }).catch(() => {});
+            return { type: "ERR", error: "" };
           }
           default:
             return { type: "ERR", error: "알 수 없는 메시지" };

@@ -9,9 +9,11 @@ export type RequestMessage =
   | { type: "STOP_STREAMING" }
   | { type: "START_LIVE_STREAMING"; platform: Platform; videoId: string; captureStartVideoTime: number; videoTitle?: string; videoUrl?: string; tabId?: number }
   | { type: "STOP_LIVE_STREAMING" }
-  // content가 "내 탭에 라이브 캡처 세션이 있나?"를 조회한다.
+  // content가 "내 탭에 라이브 캡처 세션이 있나?"를 조회한다. (tabId 없으면 sender 탭 기준)
   // alwaysCapture(Weverse) 자막 UI를 Start 이후에만 마운트하기 위한 단일 진실 소스.
-  | { type: "IS_LIVE_ACTIVE" };
+  | { type: "IS_LIVE_ACTIVE"; tabId?: number }
+  // 라이브 캡처 중 자막 언어를 바꾼다 (offscreen WS에 set_lang 전송 → 이후 자막부터 새 언어).
+  | { type: "SET_LIVE_LANG"; tabId: number; language: string };
 
 /** background → 요청자 응답 메시지 */
 export type ResponseMessage =
@@ -81,8 +83,14 @@ export async function startGeneration(
   return res?.type === "GENERATION_STARTED" ? res.etaSeconds : null;
 }
 
-/** 현재 탭에 라이브 캡처 세션이 활성 상태인지 조회한다. (Weverse 자막 UI 마운트 조건) */
-export async function isLiveActive(): Promise<boolean> {
-  const res = await send({ type: "IS_LIVE_ACTIVE" });
+/** 라이브 캡처 세션이 활성 상태인지 조회한다. (Weverse 자막 UI 마운트 조건)
+ * 팝업은 자기 탭 ID가 없으므로 tabId를 명시한다. content는 생략하면 sender 탭 기준. */
+export async function isLiveActive(tabId?: number): Promise<boolean> {
+  const res = await send({ type: "IS_LIVE_ACTIVE", tabId });
   return res?.type === "LIVE_ACTIVE" ? res.active : false;
+}
+
+/** 라이브 캡처 중 자막 언어를 변경한다 (이후 자막부터 새 언어로 번역). */
+export function setLiveLang(tabId: number, language: string): void {
+  void chrome.runtime.sendMessage({ type: "SET_LIVE_LANG", tabId, language });
 }

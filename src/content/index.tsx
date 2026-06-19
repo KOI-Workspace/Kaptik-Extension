@@ -89,6 +89,14 @@ class SubtitleController {
   async start() {
     this.settings = await getSettings();
 
+    // 페이지가 새로 로드될 때마다 이전 페이지에서 살아있던 캡처 세션을 정리한다.
+    // → "팝업에서 Create Subtitle을 눌러야만 자막 UI가 뜬다"는 UX를 보장.
+    //   (이전에 만든 자막/세션이 Start 없이 자동 복구되어 떠버리는 것을 방지)
+    //   alwaysCapture(Weverse) 한정이고, 세션이 없으면 background가 무시하므로 안전하다.
+    if (this.adapter.alwaysCapture) {
+      chrome.runtime.sendMessage({ type: "STOP_LIVE_STREAMING" }).catch(() => {});
+    }
+
     // 설정 변경(자막 ON/OFF, 패널 표시 등) → 재평가
     onSettingsChanged((s) => {
       const prevLanguage = this.settings.language;
@@ -321,9 +329,10 @@ class SubtitleController {
         speakerIdentified = vodStatus?.state === "available" ? (vodStatus.speakerIdentifiable ?? true) : true;
       }
 
-      // alwaysCapture(Weverse): 팝업 "Create Subtitles"로 캡처 세션이 시작된 경우에만 마운트한다.
+      // alwaysCapture(Weverse): 팝업 "Create Subtitle"로 캡처 세션이 시작된 경우에만 마운트한다.
       // 라이브/다시보기, 이전 자막 생성 이력과 무관하게 Start 전에는 자막 UI를 띄우지 않는다.
-      // (새로고침 후에도 세션이 살아있으면 active=true라 자동 복구된다)
+      // 페이지 로드 시 이전 세션은 start()에서 정리되므로, 새로고침/재진입 후에는 active=false →
+      // 사용자가 Create Subtitle을 다시 눌러야만 자막 UI가 뜬다 (자동 복구 안 함).
       if (useCapture && this.adapter.alwaysCapture) {
         const active = await isLiveActive();
         if (!active) {

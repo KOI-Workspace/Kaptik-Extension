@@ -191,7 +191,7 @@ function stopCapture(): void {
 }
 
 chrome.runtime.onMessage.addListener(
-  (msg: { type: string; videoMs?: number; muted?: boolean } & Partial<CaptureTabMsg>) => {
+  (msg: { type: string; videoMs?: number; muted?: boolean; language?: string } & Partial<CaptureTabMsg>) => {
     if (msg.type === "CAPTURE_TAB") {
       void startCapture(msg as CaptureTabMsg);
     } else if (msg.type === "STOP_CAPTURE") {
@@ -206,6 +206,11 @@ chrome.runtime.onMessage.addListener(
       const next = Boolean(msg.muted);
       if (next && !adMuted) adMutedSince = Date.now(); // 무음 시작 시각 기록
       adMuted = next;
+    } else if (msg.type === "SET_LANG") {
+      // 라이브 캡처 중 언어 변경 — 서버가 이후 자막부터 새 언어로 번역
+      if (activeWs?.readyState === WebSocket.OPEN && typeof msg.language === "string") {
+        activeWs.send(JSON.stringify({ type: "set_lang", target_lang: msg.language }));
+      }
     }
   },
 );
