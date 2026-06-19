@@ -21,6 +21,19 @@ import type { SubtitleCue, SubtitleTrack } from "@/types/subtitle";
 /** 팝업의 GET_VIDEO_TIME 요청에 응답하기 위한 모듈 스코프 컨트롤러 참조 */
 let activeController: SubtitleController | null = null;
 
+/**
+ * 실제 라이브 여부를 video.duration으로 판정한다.
+ * Weverse는 종료된 라이브(다시보기)도 URL이 `/live/`로 유지되어 URL만으론 구분이 안 된다.
+ * duration이 Infinity면 실시간 라이브, 유한하면 녹화(replay)다.
+ * 메타데이터 로딩 전(NaN)이면 URL 힌트로 폴백한다.
+ */
+function detectLiveFromVideo(video: HTMLVideoElement, urlHint: boolean): boolean {
+  const d = video.duration;
+  if (Number.isFinite(d) && d > 0) return false; // 유한 길이 = 녹화(replay)
+  if (d === Infinity) return true; // 무한 = 실시간 라이브
+  return urlHint; // 판단 불가 → URL 힌트
+}
+
 async function bootstrap() {
   // 주입 여부 확인용 — 어댑터 매칭 전에 무조건 찍는다
   console.info("[Kaptik] content script 로드됨:", location.href);
@@ -240,9 +253,11 @@ class SubtitleController {
         return;
       }
 
-      const isLive = this.adapter.isLive?.(location.href) ?? false;
+      // URL은 /live/ 경로여도 종료된 라이브(다시보기)는 녹화(replay)다. video.duration으로 실제 판정.
+      const urlIsLive = this.adapter.isLive?.(location.href) ?? false;
+      const isLive = detectLiveFromVideo(video, urlIsLive);
       // alwaysCapture: 위버스처럼 yt-dlp 추출이 불가능한 플랫폼은 라이브/VOD 무관하게 오디오 캡처 경로 사용
-      const useCapture = isLive || (this.adapter.alwaysCapture ?? false);
+      const useCapture = urlIsLive || (this.adapter.alwaysCapture ?? false);
 
       // 팝업이 DOM 없이도 isLive를 읽을 수 있도록 저장
       void chrome.storage.local.set({

@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 커뮤니케이션 스타일
+
+이 프로젝트의 주 대화 상대는 **기획자 포함 비개발자**다. 설명 시 아래 원칙을 반드시 지킨다.
+
+- 기술 용어(Shadow DOM, WebSocket, Service Worker 등)를 쓸 때는 반드시 괄호로 쉬운 말을 붙인다. 예: "WebSocket(서버와 실시간으로 데이터를 주고받는 연결)"
+- "왜 이게 필요한지", "사용자 입장에서 어떤 효과인지"를 먼저 설명하고 기술 구현은 나중에
+- 코드 파일명·함수명은 꼭 필요한 경우만 언급하고, 언급 시에는 역할을 한 줄로 설명
+- 아키텍처 다이어그램·기술 흐름보다 **사용자 경험 흐름** 중심으로 설명
+- 결론·영향을 먼저 말하고, 원인·구현 상세는 그다음에
+
 ## 명령어
 
 ```bash

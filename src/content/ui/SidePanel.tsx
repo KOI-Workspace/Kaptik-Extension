@@ -39,18 +39,6 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-/** 라이브 상대 시간 — latestStart 기준으로 몇 초/분 전인지 */
-function formatLiveTime(
-  cueStart: number,
-  latestStart: number,
-  t: import("@/shared/i18n").Messages,
-): string {
-  const diffSec = Math.max(0, Math.floor(latestStart - cueStart));
-  if (diffSec < 5) return t.liveJustNow;
-  if (diffSec < 60) return t.liveAgoSec(diffSec);
-  return t.liveAgoMin(Math.floor(diffSec / 60));
-}
-
 /**
  * 영상 오른쪽 히스토리 패널.
  * 지나간 발화를 채팅형 타임라인으로 보여주고, 타임스탬프 클릭 시 해당 위치로 이동한다.
@@ -139,13 +127,9 @@ export function SidePanel({
     );
   };
 
-  // 라이브: 아직 오지 않은 자막은 없으므로 activeIndex까지만 노출
-  // VOD: 이미 받은 자막은 seek로 뒤로 가도 그대로 유지, 현재 위치만 하이라이트
-  const history = isLive
-    ? activeIndex >= 0 ? track.cues.slice(0, activeIndex + 1) : []
-    : track.cues;
-  // 라이브 상대 시간 기준점 — 가장 최근 발화의 start
-  const latestStart = history.length > 0 ? history[history.length - 1].start : 0;
+  // 라이브/VOD 모두 받은 자막은 영상 위치(타임스탬프) 기준으로 전체 표시한다.
+  // 라이브도 DVR로 되감을 수 있으므로, 되감아도 자막 목록이 줄지 않고 현재 위치만 하이라이트한다.
+  const history = track.cues;
 
   return (
     <aside className={`kaptik-panel kaptik-panel--${variant}`}>
@@ -211,15 +195,9 @@ export function SidePanel({
                       type="button"
                       className="kaptik-row-time"
                       onClick={() => seekTo(cue.start)}
-                      aria-label={
-                        isLive
-                          ? formatLiveTime(cue.start, latestStart, t)
-                          : t.seekTo(formatTime(cue.start))
-                      }
+                      aria-label={t.seekTo(formatTime(cue.start))}
                     >
-                      {isLive
-                        ? formatLiveTime(cue.start, latestStart, t)
-                        : formatTime(cue.start)}
+                      {formatTime(cue.start)}
                     </button>
                   </div>
                   <div
