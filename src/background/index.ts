@@ -672,6 +672,17 @@ chrome.runtime.onMessage.addListener(
             if (tabId) handleStopLiveStreaming(tabId);
             return { type: "ERR", error: "" };
           }
+          case "SET_AD_MUTED": {
+            // 광고 무음 신호: 보낸 탭이 실제 캡처 중인 세션일 때만 offscreen에 전달.
+            // (캡처 안 하는 다른 위버스 탭의 광고가 활성 세션을 잘못 음소거하는 것 방지)
+            const tabId = sender.tab?.id;
+            if (tabId != null && liveSessions.has(tabId)) {
+              chrome.runtime
+                .sendMessage({ type: "SET_CAPTURE_MUTED", muted: req.muted })
+                .catch(() => {});
+            }
+            return { type: "ERR", error: "" };
+          }
           default:
             return { type: "ERR", error: "알 수 없는 메시지" };
         }

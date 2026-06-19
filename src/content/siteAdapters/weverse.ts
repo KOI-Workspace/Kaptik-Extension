@@ -55,4 +55,19 @@ export const weverseAdapter: SiteAdapter = {
       return false;
     }
   },
+
+  /**
+   * 광고 재생 여부.
+   * 위버스 본편 영상은 blob: URL(MSE)에서 재생되고, 광고는 구글 광고 CDN(redirector.gvt1.com 등)의
+   * 일반 https URL에서 재생된다. 그래서 "blob이 아닌 src로 현재 재생 중인 video"가 있으면 광고로 판정한다.
+   * 광고는 별도 video 요소를 쓰므로 페이지의 모든 video를 훑는다.
+   * (실제 로그로 확인: 본편=blob:weverse.io, 광고=https://redirector.gvt1.com)
+   */
+  isAdPlaying() {
+    return Array.from(document.querySelectorAll("video")).some((v) => {
+      const src = v.currentSrc || "";
+      const isAdSrc = src !== "" && !src.startsWith("blob:");
+      return isAdSrc && !v.paused && !v.ended;
+    });
+  },
 };
