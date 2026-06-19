@@ -67,6 +67,13 @@ async function ensureOffscreen(): Promise<void> {
   });
 }
 
+async function offscreenExists(): Promise<boolean> {
+  const contexts = await chrome.runtime.getContexts({
+    contextTypes: ["OFFSCREEN_DOCUMENT" as chrome.runtime.ContextType],
+  });
+  return contexts.length > 0;
+}
+
 async function closeOffscreen(): Promise<void> {
   const offscreen = (chrome as unknown as Record<string, unknown>).offscreen as {
     closeDocument?(): Promise<void>;
@@ -75,6 +82,50 @@ async function closeOffscreen(): Promise<void> {
   try {
     await offscreen.closeDocument();
   } catch { /* already closed */ }
+  // closeDocument resolve 후에도 문맥이 잠시 남을 수 있어 실제 소멸까지 폴링 확인
+  for (let i = 0; i < 20; i++) {
+    if (!(await offscreenExists())) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
+/**
+ * tabCapture stream ID를 획득한다.
+ * "active stream" 에러(SW 재시작 후 offscreen 잔여 캡처)는 정리 후 재시도한다.
+ */
+async function acquireStreamId(tabId: number): Promise<string> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await new Promise<string>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("getMediaStreamId timeout: 콜백이 5초 내에 응답하지 않음"));
+        }, 5000);
+        chrome.tabCapture.getMediaStreamId({ targetTabId: tabId }, (id) => {
+          clearTimeout(timeout);
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(id);
+          }
+        });
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // 잔여 캡처가 탭을 점유 중 → offscreen 정리 후 재시도
+      if (msg.includes("active stream") && attempt < 2) {
+        console.warn(`[Kaptik BG Live] active stream 점유 감지 — 정리 후 재시도 (${attempt + 1}/3)`);
+        try {
+          await chrome.runtime.sendMessage({ type: "STOP_CAPTURE" });
+        } catch { /* offscreen 미존재 시 무시 */ }
+        await new Promise((r) => setTimeout(r, 200));
+        await closeOffscreen();
+        await new Promise((r) => setTimeout(r, 300));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error("getMediaStreamId 재시도 실패: active stream을 해제하지 못함");
 }
 
 function cacheKey(platform: string, videoId: string): string {
@@ -317,22 +368,22 @@ async function handleStartLiveStreaming(
   };
   liveSessions.set(tabId, session);
 
+  // SW 재시작 후 offscreen 잔여 스트림이 탭을 점유할 수 있으므로
+  // 캡처를 새로 시작하기 전에 기존 offscreen 문서를 확실히 정리한다.
+  // (liveSessions는 SW 재시작 시 비지만 offscreen 문서/스트림은 살아있을 수 있음)
+  if (await offscreenExists()) {
+    console.info("[Kaptik BG Live] 기존 offscreen 발견 — 정리 후 새 캡처 시작");
+    try {
+      await chrome.runtime.sendMessage({ type: "STOP_CAPTURE" });
+    } catch { /* 무시 */ }
+    await new Promise((r) => setTimeout(r, 200));
+    await closeOffscreen();
+  }
+
   let streamId: string;
   try {
     console.info(`[Kaptik BG Live] getMediaStreamId 호출 중 tabId=${tabId}`);
-    streamId = await new Promise<string>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("getMediaStreamId timeout: 콜백이 5초 내에 응답하지 않음"));
-      }, 5000);
-      chrome.tabCapture.getMediaStreamId({ targetTabId: tabId }, (id) => {
-        clearTimeout(timeout);
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-        } else {
-          resolve(id);
-        }
-      });
-    });
+    streamId = await acquireStreamId(tabId);
     console.info(`[Kaptik BG Live] getMediaStreamId 성공 streamId=${streamId.slice(0, 20)}...`);
   } catch (e) {
     liveSessions.delete(tabId);
