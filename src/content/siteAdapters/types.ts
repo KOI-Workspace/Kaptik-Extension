@@ -29,6 +29,12 @@ export interface SiteAdapter {
   /** 현재 URL이 라이브 스트림인지 여부 (미구현 어댑터는 항상 false). */
   isLive?(url: string): boolean;
   /**
+   * 현재 광고가 재생 중인지 여부 (위버스 등 pre-roll/mid-roll 광고 대응).
+   * true면 캡처 오디오를 무음 처리해 광고 음성이 자막으로 만들어지지 않게 한다.
+   * 미구현 어댑터는 광고 없음으로 간주.
+   */
+  isAdPlaying?(): boolean;
+  /**
    * true이면 URL 타입(라이브/VOD)에 관계없이 항상 오디오 캡처 경로를 사용한다.
    * Weverse처럼 yt-dlp로 음성을 추출할 수 없는 플랫폼에 사용.
    */

@@ -8,7 +8,10 @@ export type RequestMessage =
   | { type: "START_STREAMING"; youtubeUrl: string; seekSec: number; serverUrl: string; keepCues?: boolean; language?: string }
   | { type: "STOP_STREAMING" }
   | { type: "START_LIVE_STREAMING"; platform: Platform; videoId: string; captureStartVideoTime: number; videoTitle?: string; videoUrl?: string; tabId?: number }
-  | { type: "STOP_LIVE_STREAMING" };
+  | { type: "STOP_LIVE_STREAMING" }
+  // 광고 재생 중 캡처 오디오를 무음 처리할지 (content → background → offscreen).
+  // 광고 음성이 자막으로 만들어지는 것을 막는다.
+  | { type: "SET_AD_MUTED"; muted: boolean };
 
 /** background → 요청자 응답 메시지 */
 export type ResponseMessage =
