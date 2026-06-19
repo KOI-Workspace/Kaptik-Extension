@@ -289,6 +289,7 @@ class SubtitleController {
           };
           const handle = mountDisplay(container, panelContainer, video, errorTrack, false);
           this.mounted = { videoId, panelContainer, handle, video, isLive: false, vodCuesReady: false, lastVodCues: [] };
+          if (!panelContainer) this.watchPanelDock(handle);
           console.info(`[Kaptik] 자막 생성 불가 (${videoId}): ${vodStatus.reason ?? "unknown"}`);
           return;
         }
@@ -313,6 +314,8 @@ class SubtitleController {
       };
       const handle = mountDisplay(container, panelContainer, video, emptyTrack, isLive);
       this.mounted = { videoId, panelContainer, handle, video, isLive, vodCuesReady: false, lastVodCues: [] };
+      // 패널 컬럼을 아직 못 찾았으면 잠시 폴링해 늦게 나타나면 도킹 (오버레이 폴백 방지)
+      if (!panelContainer) this.watchPanelDock(handle);
 
       if (useCapture) {
         // ── 라이브 경로: 탭 오디오 캡처 → 오프스크린 → 백엔드 WS ──
@@ -438,6 +441,24 @@ class SubtitleController {
   }
 
   /** 표시 중인 자막 UI와 스트리밍 세션을 제거한다. */
+  /**
+   * 패널 컬럼이 영상보다 늦게 렌더되는 SPA(위버스 등) 대응.
+   * 마운트 시점에 컬럼을 못 찾았을 때 잠시 폴링해 나타나면 도킹하고,
+   * 끝내 없으면(좁은 화면 등) 오버레이로 폴백한다.
+   */
+  private watchPanelDock(handle: DisplayHandle) {
+    void waitFor(() => this.adapter.getPanelContainer(), 5000).then((column) => {
+      // 그새 teardown/재마운트됐으면 무시 (현재 세션과 동일한 핸들일 때만 적용)
+      if (this.mounted?.handle !== handle) return;
+      if (column) {
+        handle.dockPanel(column);
+        this.mounted.panelContainer = column;
+      } else {
+        handle.fallbackToOverlay();
+      }
+    });
+  }
+
   private teardown() {
     clearTimeout(this.speakerIdTimer);
     this.speakerIdTimer = undefined;

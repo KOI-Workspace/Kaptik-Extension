@@ -64,8 +64,8 @@ export function Display({ video, track, panelMount, panelMode, isLive = false }:
         />
       )}
 
-      {/* 도킹 모드: 패널을 사이드 컬럼으로 portal */}
-      {panelDocked &&
+      {/* 도킹 모드: 패널을 사이드 컬럼으로 portal (pending은 아무것도 안 그림) */}
+      {panelMode === "docked" &&
         showPanel &&
         panelMount &&
         createPortal(
