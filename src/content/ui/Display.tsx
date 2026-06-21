@@ -74,6 +74,7 @@ export function Display({
       {/* 도킹 모드: 패널을 사이드 컬럼으로 portal */}
       {panelDocked &&
         showPanel &&
+        !isAd &&
         panelMount &&
         createPortal(
           <SidePanel
