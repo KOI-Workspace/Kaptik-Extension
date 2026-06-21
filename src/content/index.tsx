@@ -101,6 +101,8 @@ class SubtitleController {
     //   (이전에 만든 자막/세션이 Start 없이 자동 복구되어 떠버리는 것을 방지)
     //   alwaysCapture(Weverse) 한정이고, 세션이 없으면 background가 무시하므로 안전하다.
     if (this.adapter.alwaysCapture) {
+      // evaluate() 실행 전에 live_active를 false로 먼저 초기화해 race condition 방지
+      await chrome.storage.local.set({ "kaptik:live_active": false });
       chrome.runtime.sendMessage({ type: "STOP_LIVE_STREAMING" }).catch(() => {});
     }
 
@@ -313,8 +315,9 @@ class SubtitleController {
         (await waitFor(() => this.adapter.getPanelContainer(), 1500)) ?? panelContainer;
 
       // URL은 /live/ 경로여도 종료된 라이브(다시보기)는 녹화(replay)다. video.duration으로 실제 판정.
+      // alwaysCapture 플랫폼(Weverse 등)은 광고 video의 유한 duration에 속지 않도록 URL 판단만 사용.
       const urlIsLive = this.adapter.isLive?.(location.href) ?? false;
-      const isLive = detectLiveFromVideo(video, urlIsLive);
+      const isLive = this.adapter.alwaysCapture ? urlIsLive : detectLiveFromVideo(video, urlIsLive);
       // alwaysCapture: 위버스처럼 yt-dlp 추출이 불가능한 플랫폼은 라이브/VOD 무관하게 오디오 캡처 경로 사용
       const useCapture = urlIsLive || (this.adapter.alwaysCapture ?? false);
 
