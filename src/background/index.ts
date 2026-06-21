@@ -670,11 +670,15 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
     // UI의 pickText(text, language)에서 매칭되지 않아 엉뚱한 폴백으로 표시된다.
     const cueLanguage = p.language;
     const translated = String(data.translation ?? "");
+    // 번역이 빈 문자열이면 key를 포함하지 않는다.
+    // "" 를 넣으면 pickText(text, "en")에서 nullish(??) 연산자가 ""를 유효값으로 보고 한국어 폴백을 막는다.
+    const textMap: SubtitleCue["text"] = { ko: p.text_ko };
+    if (translated) textMap[cueLanguage as LanguageCode] = translated;
     const cue: SubtitleCue = {
       start,
       end: start + 6,
       speakerId: p.speaker || undefined,
-      text: { ko: p.text_ko, [cueLanguage]: translated },
+      text: textMap,
       annotations: (data.annotations as SubtitleCue["annotations"]) ?? [],
     };
 

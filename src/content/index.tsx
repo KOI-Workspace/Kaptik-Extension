@@ -101,9 +101,10 @@ class SubtitleController {
     //   (이전에 만든 자막/세션이 Start 없이 자동 복구되어 떠버리는 것을 방지)
     //   alwaysCapture(Weverse) 한정이고, 세션이 없으면 background가 무시하므로 안전하다.
     if (this.adapter.alwaysCapture) {
-      // evaluate() 실행 전에 live_active를 false로 먼저 초기화해 race condition 방지
-      await chrome.storage.local.set({ "kaptik:live_active": false });
-      chrome.runtime.sendMessage({ type: "STOP_LIVE_STREAMING" }).catch(() => {});
+      // background의 handleStopLiveStreaming(동기)이 완전히 끝난 뒤 evaluate()가 시작되도록 await.
+      // fire-and-forget이면 IS_LIVE_ACTIVE가 STOP_LIVE_STREAMING보다 먼저 처리되어
+      // 새로고침 후 광고 중에 패널이 마운트되는 race condition이 발생한다.
+      await chrome.runtime.sendMessage({ type: "STOP_LIVE_STREAMING" }).catch(() => {});
     }
 
     // 설정 변경(자막 ON/OFF, 패널 표시 등) → 재평가
@@ -262,11 +263,16 @@ class SubtitleController {
       if (this.mounted?.videoId === videoId) {
         // alwaysCapture 사이트도 플레이어 DOM이 교체되면 기존 Shadow DOM이 화면에서 분리될 수 있다.
         // 같은 DOM이면 유지하고, 컨테이너/비디오가 바뀐 경우만 아래에서 재마운트한다.
+        // 단, 세션이 종료됐을 수 있으므로 isLiveActive()를 재확인한다.
+        // LIVE_CAPTURE_STOPPED가 mount 전에 도착해 teardown이 no-op이 된 경우,
+        // 이 확인이 없으면 패널이 영원히 켜진 채로 남는다.
         if (
           this.adapter.alwaysCapture &&
           this.mounted.overlayContainer === overlayContainer &&
           (this.mounted.video === currentVideo || currentVideo == null)
         ) {
+          const active = await isLiveActive();
+          if (!active) this.teardown();
           return;
         }
         if (
