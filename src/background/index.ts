@@ -666,7 +666,7 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
     // 번역 텍스트는 현재 세션 언어 키에 저장한다. en으로 하드코딩하면 일본어(ja)·인도네시아어(id) 등이
     // UI의 pickText(text, language)에서 매칭되지 않아 엉뚱한 폴백으로 표시된다.
     const cueLanguage = p.language;
-    const translated = String(data.text_en ?? "");
+    const translated = String(data.translation ?? "");
     const cue: SubtitleCue = {
       start,
       end: start + 6,
@@ -675,9 +675,14 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
       annotations: (data.annotations as SubtitleCue["annotations"]) ?? [],
     };
 
-    // 현재 언어 칠판에 추가. 없으면 새로 만든다.
+    // 현재 언어 칠판에 upsert. 서버 cached cue 재전송 시 같은 시각 cue가 중복되지 않게 한다.
     const langCues = session.cuesByLang.get(cueLanguage) ?? [];
-    langCues.push(cue);
+    const existingIdx = langCues.findIndex((existing) => Math.abs(existing.start - cue.start) < 0.05);
+    if (existingIdx >= 0) {
+      langCues[existingIdx] = cue;
+    } else {
+      langCues.push(cue);
+    }
     langCues.sort((a, b) => a.start - b.start);
     session.cuesByLang.set(cueLanguage, langCues);
     void writeLiveCues(session.platform, session.videoId, cueLanguage, langCues);

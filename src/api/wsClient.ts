@@ -48,7 +48,7 @@ interface WSStage1Message {
 interface WSStage2Message {
   stage: 2;
   ts: number;
-  text_en?: string;
+  translation?: string;
   annotations?: Annotation[];
   streaming?: boolean;
 }
@@ -149,7 +149,7 @@ export class StreamingSession {
         this.pending.delete(ts);
         const start = ts / 1000;
         const rawAnnotations = Array.isArray(msg.annotations) ? msg.annotations : [];
-        const translatedText = msg.text_en ?? "";
+        const translatedText = msg.translation ?? "";
         const cue: SubtitleCue = {
           start,
           end: start + 6,
