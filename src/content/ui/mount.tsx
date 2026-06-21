@@ -52,6 +52,7 @@ export function mountDisplay(
   video: HTMLVideoElement,
   track: SubtitleTrack,
   isLive = false,
+  getIsAdPlaying?: () => boolean,
 ): DisplayHandle {
   // 중복 마운트 방지
   overlayContainer.querySelector(`#${OVERLAY_HOST_ID}`)?.remove();
@@ -107,6 +108,7 @@ export function mountDisplay(
         panelMount={panelMount}
         panelDocked={panelDocked}
         isLive={isLive}
+        getIsAdPlaying={getIsAdPlaying}
       />
     );
   }

@@ -47,7 +47,7 @@ interface LiveSession {
   language: string;
   /** 언어별 독립 cue 배열. 언어를 바꿔도 이전 언어 내용을 버리지 않아, 돌아오면 이어서 볼 수 있다. */
   cuesByLang: Map<string, SubtitleCue[]>;
-  pending: Map<number, { text_ko: string; speaker: string; cached: boolean }>;
+  pending: Map<number, { text_ko: string; speaker: string; cached: boolean; startMs: number }>;
   /** 광고 구간(영상 시각 ms). startMs~endMs 사이 ts를 가진 cue는 렌더링 제외 */
   adPeriods: AdPeriod[];
   /** 마지막으로 알려진 영상 재생 위치(ms) — 광고 구간 계산에 사용 */
@@ -144,6 +144,14 @@ async function acquireStreamId(tabId: number): Promise<string> {
 
 function cacheKey(platform: string, videoId: string): string {
   return `${platform}:${videoId}`;
+}
+
+/** 서버 ts가 0/비정상일 때 화면 표시용 영상 시간을 안전하게 보정한다. */
+function normalizeLiveCueStartMs(session: LiveSession, rawTs: number): number {
+  if (Number.isFinite(rawTs) && rawTs > 0) return Math.round(rawTs);
+  const fallback = Math.max(0, session.lastKnownVideoMs);
+  console.warn(`[Kaptik BG Live] 비정상 cue ts=${rawTs} → videoMs=${fallback}로 보정`);
+  return fallback;
 }
 
 
@@ -555,6 +563,7 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
       text_ko,
       speaker: String(data.speaker ?? ""),
       cached: Boolean(data.cached),
+      startMs: normalizeLiveCueStartMs(session, ts),
     });
     console.debug(`[Kaptik BG Live] STT stage1 ts=${ts}ms: "${text_ko}"`);
     return;
@@ -565,19 +574,19 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
     const p = session.pending.get(ts);
     if (!p) return;
     session.pending.delete(ts);
+    const startMs = p.startMs > 0 ? p.startMs : normalizeLiveCueStartMs(session, ts);
 
     // 광고 구간 ts 필터: 감지 전/파이프라인 지연으로 서버에 전송된 광고 음성을 렌더링에서 제외
     const isAdCue = session.adPeriods.some(
-      (period) => ts >= period.startMs && (period.endMs === null || ts <= period.endMs),
+      (period) => startMs >= period.startMs && (period.endMs === null || startMs <= period.endMs),
     );
     if (isAdCue) {
-      console.info(`[Kaptik BG Live] 광고 구간 CUE 필터 (ts=${ts}ms): "${p.text_ko}"`);
+      console.info(`[Kaptik BG Live] 광고 구간 CUE 필터 (ts=${startMs}ms, rawTs=${ts}ms): "${p.text_ko}"`);
       return;
     }
 
-    // 서버가 캡처 시작 위치(앵커)를 더해 콘텐츠 절대 ts로 보내주므로 그대로 사용.
-    // cached/non-cached 모두 동일 기준 → 클라이언트에서 offset 추가 안 함(이중 적용 방지).
-    const start = ts / 1000;
+    // 서버 ts가 0으로 고정되는 경우가 있어 stage1 시점에 저장한 영상 시간으로 보정한다.
+    const start = startMs / 1000;
     // 번역 텍스트는 현재 세션 언어 키에 저장한다. en으로 하드코딩하면 일본어(ja)·인도네시아어(id) 등이
     // UI의 pickText(text, language)에서 매칭되지 않아 엉뚱한 폴백으로 표시된다.
     const translated = String(data.text_en ?? "");
@@ -595,7 +604,7 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
     langCues.sort((a, b) => a.start - b.start);
     session.cuesByLang.set(session.language, langCues);
 
-    console.info(`[Kaptik BG Live] CUE #${langCues.length} → tab ${tabId}: [ko] "${p.text_ko}" / [${session.language}] "${translated}" (ts=${ts}ms, cached=${p.cached})`);
+    console.info(`[Kaptik BG Live] CUE #${langCues.length} → tab ${tabId}: [ko] "${p.text_ko}" / [${session.language}] "${translated}" (ts=${startMs}ms, rawTs=${ts}ms, cached=${p.cached})`);
 
     const msg: BroadcastMessage = { type: "CUE_READY", videoId: session.videoId, cues: [...langCues] };
     chrome.tabs.sendMessage(tabId, msg).catch(() => {});
@@ -784,6 +793,16 @@ chrome.runtime.onMessage.addListener(
             const tabId = sender.tab?.id;
             if (tabId) handleStopLiveStreaming(tabId);
             return { type: "ERR", error: "" };
+          }
+          case "GET_LIVE_CUES": {
+            const tabId = sender.tab?.id;
+            const session = tabId != null ? liveSessions.get(tabId) : undefined;
+            if (!session) return { type: "LIVE_CUES", videoId: "", cues: [] };
+            return {
+              type: "LIVE_CUES",
+              videoId: session.videoId,
+              cues: [...(session.cuesByLang.get(session.language) ?? [])],
+            };
           }
           case "IS_LIVE_ACTIVE": {
             // 팝업은 sender.tab이 없으므로 메시지의 tabId를 우선 사용

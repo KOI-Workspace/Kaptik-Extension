@@ -1,6 +1,6 @@
 import type { SiteAdapter } from "./siteAdapters";
 import { resolveAdapter } from "./siteAdapters";
-import type { BroadcastMessage } from "@/shared/messaging";
+import type { BroadcastMessage, ResponseMessage } from "@/shared/messaging";
 import { requestStatus, isLiveActive } from "@/shared/messaging";
 import {
   DEFAULT_SETTINGS,
@@ -54,6 +54,7 @@ class SubtitleController {
   private mounted: {
     videoId: string;
     panelContainer: HTMLElement | null;
+    overlayContainer: HTMLElement;
     handle: DisplayHandle;
     video: HTMLVideoElement;
     isLive: boolean;
@@ -246,16 +247,24 @@ class SubtitleController {
 
       // 사이드 컬럼(관련영상 영역) 또는 영상 아래 — 화면 폭에 따라 달라진다(반응형)
       const panelContainer = this.adapter.getPanelContainer();
+      const overlayContainer = this.adapter.getOverlayContainer();
 
       // 같은 영상, 같은 패널이면 유지 (video 요소가 일시적으로 null이어도 세션 유지)
       // YouTube SPA가 video 요소를 새 인스턴스로 교체한 경우에만 재마운트
       const currentVideo = this.adapter.getVideoElement();
       if (this.mounted?.videoId === videoId) {
-        // alwaysCapture 사이트(Weverse 등): React SPA가 DOM을 자주 교체하므로
-        // DOM 참조 비교 없이 videoId만 확인한다 (오디오 캡처는 탭 단위라 영향 없음)
-        if (this.adapter.alwaysCapture) return;
+        // alwaysCapture 사이트도 플레이어 DOM이 교체되면 기존 Shadow DOM이 화면에서 분리될 수 있다.
+        // 같은 DOM이면 유지하고, 컨테이너/비디오가 바뀐 경우만 아래에서 재마운트한다.
+        if (
+          this.adapter.alwaysCapture &&
+          this.mounted.overlayContainer === overlayContainer &&
+          (this.mounted.video === currentVideo || currentVideo == null)
+        ) {
+          return;
+        }
         if (
           this.mounted.panelContainer === panelContainer &&
+          this.mounted.overlayContainer === overlayContainer &&
           (this.mounted.video === currentVideo || currentVideo == null)
         ) {
           return;
@@ -332,8 +341,8 @@ class SubtitleController {
             members: {},
             error: vodStatus.reason,
           };
-          const handle = mountDisplay(container, dockColumn, video, errorTrack, false);
-          this.mounted = { videoId, panelContainer: dockColumn, handle, video, isLive: false, vodCuesReady: false, lastVodCues: [] };
+          const handle = mountDisplay(container, dockColumn, video, errorTrack, false, () => this.isAdPlaying());
+          this.mounted = { videoId, panelContainer: dockColumn, overlayContainer: container, handle, video, isLive: false, vodCuesReady: false, lastVodCues: [] };
           console.info(`[Kaptik] 자막 생성 불가 (${videoId}): ${vodStatus.reason ?? "unknown"}`);
           return;
         }
@@ -368,10 +377,21 @@ class SubtitleController {
         members: {},
         speakerIdentified,
       };
-      const handle = mountDisplay(container, dockColumn, video, emptyTrack, isLive);
-      this.mounted = { videoId, panelContainer: dockColumn, handle, video, isLive, vodCuesReady: false, lastVodCues: [] };
+      const handle = mountDisplay(container, dockColumn, video, emptyTrack, isLive, () => this.isAdPlaying());
+      this.mounted = { videoId, panelContainer: dockColumn, overlayContainer: container, handle, video, isLive, vodCuesReady: false, lastVodCues: [] };
 
       if (useCapture) {
+        chrome.runtime.sendMessage({ type: "GET_LIVE_CUES" }, (res: ResponseMessage | undefined) => {
+          if (
+            res?.type === "LIVE_CUES" &&
+            res.videoId === videoId &&
+            this.mounted?.videoId === videoId &&
+            res.cues.length > 0
+          ) {
+            this.mounted.handle.updateCues(res.cues);
+          }
+        });
+
         // ── 라이브 경로: 탭 오디오 캡처 → 오프스크린 → 백엔드 WS ──
         // 중복 시작 방지 플래그 — 버퍼링 후 playing 이벤트 중복 발생 대응
         let streamingActive = false;

@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import type { SubtitleTrack } from "@/types/subtitle";
-import { useActiveIndex, useSettings } from "../hooks";
+import { useActiveIndex, useAdState, useSettings } from "../hooks";
 import { CenterSubtitle } from "./CenterSubtitle";
 import { SidePanel } from "./SidePanel";
 
@@ -13,6 +13,8 @@ interface DisplayProps {
   panelDocked: boolean;
   /** 라이브 스트림 여부 */
   isLive?: boolean;
+  /** 광고가 현재 재생 중인지 확인하는 함수 */
+  getIsAdPlaying?: () => boolean;
 }
 
 /**
@@ -21,15 +23,23 @@ interface DisplayProps {
  * - 가운데 자막: 이 컴포넌트가 속한 오버레이에 직접 렌더
  * - 우측 패널: 도킹 모드면 createPortal로 사이드 컬럼(panelMount)에, 아니면 오버레이 안에 렌더
  */
-export function Display({ video, track, panelMount, panelDocked, isLive = false }: DisplayProps) {
+export function Display({
+  video,
+  track,
+  panelMount,
+  panelDocked,
+  isLive = false,
+  getIsAdPlaying,
+}: DisplayProps) {
   const settings = useSettings();
   const activeIndex = useActiveIndex(video, track.cues);
+  const isAd = useAdState(getIsAdPlaying);
 
   if (!settings.enabled) return null;
 
   const showPanel = settings.showPanel;
   // 폴백 모드에서만 패널이 오버레이 안에 들어가므로 가운데 자막을 비켜준다
-  const overlayHasPanel = showPanel && !panelDocked;
+  const overlayHasPanel = showPanel && !panelDocked && !isAd;
 
   return (
     <div
@@ -38,11 +48,13 @@ export function Display({ video, track, panelMount, panelDocked, isLive = false 
         (overlayHasPanel ? " has-panel" : "")
       }
     >
-      <CenterSubtitle
-        track={track}
-        activeIndex={activeIndex}
-        settings={settings}
-      />
+      {!isAd && (
+        <CenterSubtitle
+          track={track}
+          activeIndex={activeIndex}
+          settings={settings}
+        />
+      )}
 
       {/* 폴백 모드: 패널을 영상 위 오버레이로 함께 렌더 */}
       {overlayHasPanel && (

@@ -9,6 +9,7 @@ export type RequestMessage =
   | { type: "STOP_STREAMING" }
   | { type: "START_LIVE_STREAMING"; platform: Platform; videoId: string; captureStartVideoTime: number; videoTitle?: string; videoUrl?: string; tabId?: number }
   | { type: "STOP_LIVE_STREAMING" }
+  | { type: "GET_LIVE_CUES" }
   // content가 "내 탭에 라이브 캡처 세션이 있나?"를 조회한다. (tabId 없으면 sender 탭 기준)
   // alwaysCapture(Weverse) 자막 UI를 Start 이후에만 마운트하기 위한 단일 진실 소스.
   | { type: "IS_LIVE_ACTIVE"; tabId?: number }
@@ -22,6 +23,7 @@ export type ResponseMessage =
   | { type: "GENERATION_STARTED"; etaSeconds: number }
   | { type: "STREAMING_STARTED" }
   | { type: "LIVE_ACTIVE"; active: boolean }
+  | { type: "LIVE_CUES"; videoId: string; cues: SubtitleCue[] }
   | { type: "ERR"; error: string };
 
 /** background → content 브로드캐스트 */
