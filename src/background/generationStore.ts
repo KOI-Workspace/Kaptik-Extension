@@ -66,6 +66,37 @@ async function readGenLang(): Promise<Record<string, string>> {
   return (r[GEN_LANG_KEY] ?? {}) as Record<string, string>;
 }
 
+/**
+ * 모든 주요 저장소 데이터를 한 번에 읽는다. (성능 최적화)
+ * @returns 배열 순서: [jobs, done, cuesReady, genLang]
+ */
+async function readAll(): Promise<[Record<string, Job>, string[], string[], Record<string, string>]> {
+  const data = await chrome.storage.local.get([JOBS_KEY, DONE_KEY, CUES_KEY, GEN_LANG_KEY]);
+  return [
+    (data[JOBS_KEY] ?? {}) as Record<string, Job>,
+    (data[DONE_KEY] ?? []) as string[],
+    (data[CUES_KEY] ?? []) as string[],
+    (data[GEN_LANG_KEY] ?? {}) as Record<string, string>,
+  ];
+}
+
+/**
+ * 여러 저장소 값을 한 번에 쓴다. (성능 최적화)
+ */
+async function writeAll(
+  jobs: Record<string, Job>,
+  done: string[],
+  cues: string[],
+  genLang: Record<string, string>,
+): Promise<void> {
+  await chrome.storage.local.set({
+    [JOBS_KEY]: jobs,
+    [DONE_KEY]: done,
+    [CUES_KEY]: cues,
+    [GEN_LANG_KEY]: genLang,
+  });
+}
+
 export async function markCuesReady(platform: Platform, videoId: string): Promise<void> {
   const key = keyOf(platform, videoId);
   const list = await readCuesReady();
@@ -86,16 +117,19 @@ export async function isLocalJobDone(platform: Platform, videoId: string): Promi
 }
 
 async function markDone(key: string): Promise<boolean> {
-  const done = await readDone();
+  // jobs와 done을 한 번에 읽는다 (배치 최적화)
+  const [jobs, done] = await Promise.all([readJobs(), readDone()]);
   if (done.includes(key)) return false; // 이미 완료 처리됨
   done.push(key);
-  await chrome.storage.local.set({ [DONE_KEY]: done });
   // 완료된 job 제거
-  const jobs = await readJobs();
   if (jobs[key]) {
     delete jobs[key];
-    await writeJobs(jobs);
   }
+  // 한 번의 storage 쓰기로 모두 처리
+  await Promise.all([
+    writeJobs(jobs),
+    chrome.storage.local.set({ [DONE_KEY]: done }),
+  ]);
   return true; // 이번에 새로 완료 전이됨
 }
 
@@ -106,23 +140,22 @@ export async function getLocalStatus(
   currentLanguage?: string,
 ): Promise<SubtitleStatus> {
   const key = keyOf(platform, videoId);
-  const done = await readDone();
+  // 모든 저장소 데이터를 한 번에 읽는다 (배치 최적화)
+  const [jobs, done, cuesReady, genLang] = await readAll();
+
   if (done.includes(key)) {
     // 생성 시 사용된 언어와 현재 요청 언어가 다르면 아직 해당 언어 자막 없음.
     // gen_lang 항목이 없는 구버전 데이터도 언어 불명으로 간주해 재생성 요구.
     if (currentLanguage) {
-      const genLang = await readGenLang();
       const storedLang = genLang[key];
       if (!storedLang || storedLang !== currentLanguage) {
         return { state: "none" };
       }
     }
-    const cuesReady = await areCuesReady(platform, videoId);
-    if (cuesReady) return { state: "available" };
+    if (cuesReady.includes(key)) return { state: "available" };
     return { state: "generating", progress: 0.99, etaSeconds: 0, step: "cues_loading" };
   }
 
-  const jobs = await readJobs();
   const job = jobs[key];
   if (!job) return { state: "none" };
 
@@ -219,15 +252,15 @@ export async function completeLocalJob(
 
 export async function removeAvailable(platform: Platform, videoId: string): Promise<void> {
   const key = keyOf(platform, videoId);
-  const [done, jobs, cues, genLang] = await Promise.all([
-    readDone(), readJobs(), readCuesReady(), readGenLang(),
-  ]);
+  // 모든 저장소 데이터를 한 번에 읽는다 (배치 최적화)
+  const [jobs, done, cues, genLang] = await readAll();
   delete jobs[key];
   delete genLang[key];
-  await Promise.all([
-    chrome.storage.local.set({ [DONE_KEY]: done.filter((k) => k !== key) }),
-    writeJobs(jobs),
-    chrome.storage.local.set({ [CUES_KEY]: cues.filter((k) => k !== key) }),
-    chrome.storage.local.set({ [GEN_LANG_KEY]: genLang }),
-  ]);
+  // 배치 쓰기로 한 번의 storage 작업으로 처리
+  await writeAll(
+    jobs,
+    done.filter((k) => k !== key),
+    cues.filter((k) => k !== key),
+    genLang,
+  );
 }
