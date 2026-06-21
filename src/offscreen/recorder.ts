@@ -103,6 +103,17 @@ async function startCapture(msg: CaptureTabMsg): Promise<void> {
       }),
     );
 
+    // init 직후 즉시 첫 time_sync 전송.
+    // 500ms 오디오 누적 후 전송하는 주기 time_sync보다 STT 결과가 먼저 도착하면
+    // 서버가 시간 기준 없이 ts=0을 보내는 문제를 방지한다.
+    ws.send(
+      JSON.stringify({
+        type: "time_sync",
+        audio_ms: 0,
+        video_ms: Math.round(latestVideoMs),
+      }),
+    );
+
     // 16 kHz mono AudioContext for PCM-16 resampling (STT 전용)
     audioCtx = new AudioContext({ sampleRate: 16000 });
     const source = audioCtx.createMediaStreamSource(stream);

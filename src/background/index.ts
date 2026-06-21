@@ -155,9 +155,21 @@ function cacheKey(platform: string, videoId: string): string {
 /** 서버 ts가 0/비정상일 때 화면 표시용 영상 시간을 안전하게 보정한다. */
 function normalizeLiveCueStartMs(session: LiveSession, rawTs: number): number {
   if (Number.isFinite(rawTs) && rawTs > 0) return Math.round(rawTs);
-  const fallback = Math.max(0, session.lastKnownVideoMs);
-  console.warn(`[Kaptik BG Live] 비정상 cue ts=${rawTs} → videoMs=${fallback}로 보정`);
-  return fallback;
+  // 1차 폴백: background가 폴링한 실제 영상 위치
+  if (session.lastKnownVideoMs > 0) {
+    console.warn(`[Kaptik BG Live] 비정상 cue ts=${rawTs} → videoMs=${session.lastKnownVideoMs}로 보정`);
+    return Math.round(session.lastKnownVideoMs);
+  }
+  // 2차 폴백: videoMs도 0인 경우 (라이브 스트림 시작 직후 currentTime=0 상황).
+  // 현재 언어의 마지막 cue 이후로 배치해 단조 증가를 보장한다.
+  const currentCues = session.cuesByLang.get(session.language) ?? [];
+  if (currentCues.length > 0) {
+    const lastMs = Math.round(currentCues[currentCues.length - 1].start * 1000) + 3000;
+    console.warn(`[Kaptik BG Live] 비정상 cue ts=${rawTs}, videoMs=0 → 직전 cue 기준 ${lastMs}ms로 추정`);
+    return lastMs;
+  }
+  console.warn(`[Kaptik BG Live] 비정상 cue ts=${rawTs}, videoMs=0, 첫 cue → 0으로 처리`);
+  return 0;
 }
 
 function isWithinAdPeriod(session: LiveSession, startMs: number): boolean {
