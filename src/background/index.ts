@@ -43,9 +43,10 @@ interface LiveSession {
   platform: Platform;
   videoId: string;
   captureStartVideoTime: number;
-  /** 현재 서버에 요청 중인 번역 언어. 언어 변경 시 set_lang으로 전환하고 cue를 초기화한다. */
+  /** 현재 서버에 요청 중인 번역 언어. */
   language: string;
-  cues: SubtitleCue[];
+  /** 언어별 독립 cue 배열. 언어를 바꿔도 이전 언어 내용을 버리지 않아, 돌아오면 이어서 볼 수 있다. */
+  cuesByLang: Map<string, SubtitleCue[]>;
   pending: Map<number, { text_ko: string; speaker: string; cached: boolean }>;
   /** 광고 구간(영상 시각 ms). startMs~endMs 사이 ts를 가진 cue는 렌더링 제외 */
   adPeriods: AdPeriod[];
@@ -175,7 +176,10 @@ async function handleGetStatus(
       (s) => s.platform === platform && s.videoId === videoId,
     );
     if (!session) return { type: "STATUS_OK", status: { state: "none" } };
-    if (session.cues.length > 0) {
+    // 현재 언어 칠판에 cue가 하나라도 있으면 available (언어를 방금 바꿔서 아직 새 cue가 없더라도
+    // 이전에 해당 언어로 쌓인 게 있으면 available로 처리 — 화면에 이미 복원돼 있음)
+    const currentLangCues = session.cuesByLang.get(session.language) ?? [];
+    if (currentLangCues.length > 0) {
       return { type: "STATUS_OK", status: { state: "available" } };
     }
     return { type: "STATUS_OK", status: { state: "generating", etaSeconds: 0, progress: 0 } };
@@ -389,7 +393,7 @@ async function handleStartLiveStreaming(
     videoId,
     captureStartVideoTime,
     language,
-    cues: [],
+    cuesByLang: new Map(),
     pending: new Map(),
     adPeriods: [],
     lastKnownVideoMs: captureStartVideoTime * 1000,
@@ -516,13 +520,12 @@ function handleSetLiveLang(tabId: number, language: string): void {
   if (session) {
     if (session.language === language) return; // 동일 언어면 무시
     session.language = language;
-    // 이전 언어 자막을 완전히 폐기 — 새 언어 cue가 이어붙는 게 아니라 처음부터 새로 쌓이게 한다.
-    session.cues = [];
-    session.pending.clear();
-    // 화면의 이전 언어 자막을 즉시 비운다 (새 언어 cue가 도착할 때까지 빈 상태 유지)
-    const clearMsg: BroadcastMessage = { type: "CUE_READY", videoId: session.videoId, cues: [] };
-    chrome.tabs.sendMessage(tabId, clearMsg).catch(() => {});
-    console.info(`[Kaptik BG Live] 라이브 언어 전환 → ${language} (tab ${tabId}, 이전 자막 초기화)`);
+    // pending(stage1 원문 대기)은 유지 — 이미 들어온 한국어 원문에 새 언어 번역이 매칭될 수 있음
+    // 해당 언어 칠판으로 전환. 이전에 쌓인 cue가 있으면 즉시 화면에 복원.
+    const existingCues = session.cuesByLang.get(language) ?? [];
+    const msg: BroadcastMessage = { type: "CUE_READY", videoId: session.videoId, cues: existingCues };
+    chrome.tabs.sendMessage(tabId, msg).catch(() => {});
+    console.info(`[Kaptik BG Live] 라이브 언어 전환 → ${language} (tab ${tabId}, 기존 cue ${existingCues.length}개 복원)`);
   }
   // offscreen이 활성 WS로 set_lang을 보내도록 전달 (이후 자막부터 새 언어로 번역됨)
   chrome.runtime.sendMessage({ type: "SET_LANG", language }).catch(() => {});
@@ -586,12 +589,15 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
       annotations: (data.annotations as SubtitleCue["annotations"]) ?? [],
     };
 
-    session.cues.push(cue);
-    session.cues.sort((a, b) => a.start - b.start);
+    // 현재 언어 칠판에 추가. 없으면 새로 만든다.
+    const langCues = session.cuesByLang.get(session.language) ?? [];
+    langCues.push(cue);
+    langCues.sort((a, b) => a.start - b.start);
+    session.cuesByLang.set(session.language, langCues);
 
-    console.info(`[Kaptik BG Live] CUE #${session.cues.length} → tab ${tabId}: [ko] "${p.text_ko}" / [${session.language}] "${translated}" (ts=${ts}ms, cached=${p.cached})`);
+    console.info(`[Kaptik BG Live] CUE #${langCues.length} → tab ${tabId}: [ko] "${p.text_ko}" / [${session.language}] "${translated}" (ts=${ts}ms, cached=${p.cached})`);
 
-    const msg: BroadcastMessage = { type: "CUE_READY", videoId: session.videoId, cues: [...session.cues] };
+    const msg: BroadcastMessage = { type: "CUE_READY", videoId: session.videoId, cues: [...langCues] };
     chrome.tabs.sendMessage(tabId, msg).catch(() => {});
   }
 }
