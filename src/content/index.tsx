@@ -362,17 +362,13 @@ class SubtitleController {
       }
 
       // alwaysCapture(Weverse): 팝업 "Create Subtitle"로 캡처 세션이 시작된 경우에만 마운트한다.
-      // 라이브/다시보기, 이전 자막 생성 이력과 무관하게 Start 전에는 자막 UI를 띄우지 않는다.
-      // 페이지 로드 시 이전 세션은 start()에서 정리되므로, 새로고침/재진입 후에는 active=false →
-      // 사용자가 Create Subtitle을 다시 눌러야만 자막 UI가 뜬다 (자동 복구 안 함).
+      // Start 버튼이 눌리지 않은 상태(active=false)면 저장된 cue 유무와 무관하게 마운트하지 않는다.
+      // 새로고침/재진입 시에는 반드시 Create Subtitle을 다시 눌러야 자막 UI가 뜬다.
       if (useCapture && this.adapter.alwaysCapture) {
         const active = await isLiveActive();
         if (!active) {
-          const storedStatus = await requestStatus(this.adapter.platform, videoId, this.settings.language, location.href);
-          if (storedStatus?.state !== "available") {
-            this.teardown();
-            return;
-          }
+          this.teardown();
+          return;
         }
       }
 
