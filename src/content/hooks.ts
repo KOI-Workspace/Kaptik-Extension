@@ -68,3 +68,35 @@ export function useActiveIndex(
 
   return index;
 }
+
+/** 광고 재생 여부를 짧은 주기로 확인해 오버레이 표시를 제어한다. */
+export function useAdState(getIsAdPlaying?: () => boolean): boolean {
+  const [isAd, setIsAd] = useState(false);
+
+  useEffect(() => {
+    if (!getIsAdPlaying) {
+      setIsAd(false);
+      return;
+    }
+
+    let active = true;
+    const read = () => {
+      let next = false;
+      try {
+        next = getIsAdPlaying();
+      } catch {
+        next = false;
+      }
+      if (active) setIsAd(next);
+    };
+
+    read();
+    const timer = window.setInterval(read, 250);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [getIsAdPlaying]);
+
+  return isAd;
+}
