@@ -31,7 +31,7 @@ export interface JobResponse {
   cues?: Array<{
     cue_id: string;
     text_ko: string;
-    text_en: string;
+    translation: string;
     start_ms: number;
     end_ms: number;
     speaker: string;
