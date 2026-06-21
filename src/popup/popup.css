@@ -470,6 +470,21 @@ input[type="range"]::-webkit-slider-thumb {
   margin-top: 2px;
 }
 
+/* ── 시작 전 언어 선택 행 ── */
+.state-lang {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 10px 14px;
+  margin-top: 6px;
+  box-sizing: border-box;
+}
+
 /* ── 기본 버튼 ── */
 .btn-primary {
   width: 100%;

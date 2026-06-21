@@ -7,7 +7,9 @@ export type RequestMessage =
   | { type: "START_GENERATION"; platform: Platform; videoId: string; force?: boolean; language?: string }
   | { type: "START_STREAMING"; youtubeUrl: string; seekSec: number; serverUrl: string; keepCues?: boolean; language?: string }
   | { type: "STOP_STREAMING" }
-  | { type: "START_LIVE_STREAMING"; platform: Platform; videoId: string; captureStartVideoTime: number; videoTitle?: string; videoUrl?: string; tabId?: number }
+  // language: 라이브 캡처 시작/재시작 시 사용할 번역 언어. 언어 변경 시 같은 영상이어도 이 값이 다르면
+  // 백그라운드가 기존 세션을 버리고 새 언어로 캡처를 다시 시작한다 (언어별 자막을 완전히 분리).
+  | { type: "START_LIVE_STREAMING"; platform: Platform; videoId: string; captureStartVideoTime: number; videoTitle?: string; videoUrl?: string; tabId?: number; language?: string }
   | { type: "STOP_LIVE_STREAMING" }
   // content가 "내 탭에 라이브 캡처 세션이 있나?"를 조회한다. (tabId 없으면 sender 탭 기준)
   // alwaysCapture(Weverse) 자막 UI를 Start 이후에만 마운트하기 위한 단일 진실 소스.

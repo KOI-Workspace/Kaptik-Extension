@@ -164,10 +164,19 @@ async function handleGetStatus(
   videoId: string,
   msgLanguage?: string,
 ): Promise<ResponseMessage> {
-  // YouTube가 아닌 플랫폼(Weverse 등)은 오디오 캡처 경로를 사용하므로
-  // 이전 실패 기록 등 stale 상태가 있어도 none으로 처리한다
+  // YouTube가 아닌 플랫폼(Weverse 등)은 오디오 캡처 경로를 사용한다.
+  // - 활성 세션 + 번역 자막(cue) 1개 이상 도착 → "available" (설정 패널 표시)
+  // - 활성 세션 있으나 아직 첫 자막 전 → "generating" (캡처 중, 첫 자막 대기)
+  // - 세션 없음 → "none" (Start 버튼 표시)
   if (platform !== "youtube") {
-    return { type: "STATUS_OK", status: { state: "none" } };
+    const session = [...liveSessions.values()].find(
+      (s) => s.platform === platform && s.videoId === videoId,
+    );
+    if (!session) return { type: "STATUS_OK", status: { state: "none" } };
+    if (session.cues.length > 0) {
+      return { type: "STATUS_OK", status: { state: "available" } };
+    }
+    return { type: "STATUS_OK", status: { state: "generating", etaSeconds: 0, progress: 0 } };
   }
   const settings = await getSettings();
   // 호출자가 language를 직접 전달하면 우선 사용 — storage 쓰기 완료 전 race condition 방지

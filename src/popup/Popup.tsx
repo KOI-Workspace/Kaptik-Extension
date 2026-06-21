@@ -158,7 +158,8 @@ export function Popup() {
     if (!target) return;
     prevStatusStateRef.current = "generating";
     setStatus({ state: "generating", etaSeconds: 0, progress: 0 });
-    void startGeneration(target.platform, target.videoId).then((eta) => {
+    // 시작 전 고른 언어를 명시 전달 — patch(storage 쓰기) 완료 전 race condition 방지
+    void startGeneration(target.platform, target.videoId, false, settings.language).then((eta) => {
       if (eta === null) {
         setStatus({ state: "failed" });
       } else {
@@ -302,8 +303,8 @@ export function Popup() {
 
       {target && !locked && status?.state === "none" && (
         target.alwaysCapture
-          ? <LiveNoneView t={t} onStart={handleStartLive} />
-          : <NoneView t={t} onGenerate={handleGenerate} />
+          ? <LiveNoneView t={t} settings={settings} patch={patch} onStart={handleStartLive} />
+          : <NoneView t={t} settings={settings} patch={patch} onGenerate={handleGenerate} />
       )}
 
       {target && !locked && status?.state === "generating" && (
@@ -336,6 +337,32 @@ export function CheckingView({ t }: { t: Messages }) {
   return <div className="state-block state-checking">{t.checking}</div>;
 }
 
+/** 자막 언어 선택 드롭다운 (시작 전/후 공용) */
+export function LanguageSelect({
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  value: LanguageCode;
+  onChange: (lang: LanguageCode) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <select
+      className="select"
+      value={value}
+      aria-label={ariaLabel}
+      onChange={(e) => onChange(e.target.value as LanguageCode)}
+    >
+      {UI_LANGUAGE_OPTIONS.map((code) => (
+        <option key={code} value={code}>
+          {LANGUAGE_LABELS[code]}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export function LoginView({ t, onLogin }: { t: Messages; onLogin: () => void }) {
   return (
     <div className="login-view">
@@ -362,11 +389,30 @@ export function UnsupportedView({ t }: { t: Messages }) {
   );
 }
 
-export function NoneView({ t, onGenerate }: { t: Messages; onGenerate: () => void }) {
+export function NoneView({
+  t,
+  settings,
+  patch,
+  onGenerate,
+}: {
+  t: Messages;
+  settings: KaptikSettings;
+  patch: (next: Partial<KaptikSettings>) => void;
+  onGenerate: () => void;
+}) {
   return (
     <div className="state-block">
       <div className="state-title">{t.noneTitle}</div>
       <div className="state-desc">{t.noneDesc}</div>
+      {/* 시작 전 언어 선택 — 번역을 돌리기 전에 원하는 언어를 고른다 */}
+      <div className="state-lang">
+        <span className="row-label">{t.langLabel}</span>
+        <LanguageSelect
+          value={settings.language}
+          onChange={(lang) => patch({ language: lang })}
+          ariaLabel={t.ariaChangeLang}
+        />
+      </div>
       <button type="button" className="btn-primary" onClick={onGenerate}>
         {t.generateBtn}
       </button>
@@ -406,11 +452,30 @@ export function GeneratingView({
   );
 }
 
-export function LiveNoneView({ t, onStart }: { t: Messages; onStart: () => void }) {
+export function LiveNoneView({
+  t,
+  settings,
+  patch,
+  onStart,
+}: {
+  t: Messages;
+  settings: KaptikSettings;
+  patch: (next: Partial<KaptikSettings>) => void;
+  onStart: () => void;
+}) {
   return (
     <div className="state-block">
       <div className="state-title">{t.liveNoneTitle}</div>
       <div className="state-desc">{t.liveNoneDesc}</div>
+      {/* 시작 전 언어 선택 — 라이브 캡처를 시작하기 전에 원하는 언어를 고른다 */}
+      <div className="state-lang">
+        <span className="row-label">{t.langLabel}</span>
+        <LanguageSelect
+          value={settings.language}
+          onChange={(lang) => patch({ language: lang })}
+          ariaLabel={t.ariaChangeLang}
+        />
+      </div>
       <button type="button" className="btn-primary" onClick={onStart}>
         {t.startLiveBtn}
       </button>
@@ -514,22 +579,14 @@ export function AvailableView({
       <div className="card">
         <div className="row">
           <span className="row-label">{t.langLabel}</span>
-          <select
-            className="select"
+          <LanguageSelect
             value={settings.language}
-            aria-label={t.ariaChangeLang}
-            onChange={(e) => {
-              const lang = e.target.value as LanguageCode;
+            ariaLabel={t.ariaChangeLang}
+            onChange={(lang) => {
               if (onLanguageChange) onLanguageChange(lang);
               else patch({ language: lang });
             }}
-          >
-            {UI_LANGUAGE_OPTIONS.map((code) => (
-              <option key={code} value={code}>
-                {LANGUAGE_LABELS[code]}
-              </option>
-            ))}
-          </select>
+          />
         </div>
 
         {isLive && (
