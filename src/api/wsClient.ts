@@ -1,10 +1,7 @@
-import type { Member, SubtitleCue } from "@/types/subtitle";
+import type { Annotation, Member, SubtitleCue } from "@/types/subtitle";
 import { resolveMemberByName } from "@/shared/members";
 
 // ===== WebSocket 메시지 타입 정의 =====
-
-/** 모든 WS 메시지의 기본 타입 필드 */
-type WSMessageType = "ack" | "status" | "speaker_identified" | "done" | "error" | "stage1" | "stage2";
 
 /** ACK 메시지: 세션 확인 */
 interface WSAckMessage {
@@ -52,7 +49,7 @@ interface WSStage2Message {
   stage: 2;
   ts: number;
   text_en?: string;
-  annotations?: unknown[];
+  annotations?: Annotation[];
   streaming?: boolean;
 }
 
@@ -133,7 +130,39 @@ export class StreamingSession {
   }
 
   private handle(msg: WSMessage): void {
-    // 타입별 메시지 처리 (타입 가드로 안전하게 프로퍼티 접근)
+    // 타입별 메시지 처리: stage 메시지(WSStage1/2Message)는 type 필드가 없으므로 먼저 분기
+    if (!("type" in msg)) {
+      // Stage1: 한국어 원문 수신
+      if (msg.stage === 1) {
+        const ts = msg.ts;
+        this.pending.set(ts, {
+          text_ko: msg.text_ko ?? "",
+          speaker: msg.speaker ?? "",
+        });
+        console.info(`[Kaptik WS] Stage1 t=${(ts / 1000).toFixed(1)}s: "${msg.text_ko ?? ""}"`);
+      }
+      // Stage2: 번역 완료 (streaming=true인 중간 토큰은 무시, final만 처리)
+      if (msg.stage === 2 && !msg.streaming) {
+        const ts = msg.ts;
+        const p = this.pending.get(ts);
+        if (!p) return;
+        this.pending.delete(ts);
+        const start = ts / 1000;
+        const rawAnnotations = Array.isArray(msg.annotations) ? msg.annotations : [];
+        const translatedText = msg.text_en ?? "";
+        const cue: SubtitleCue = {
+          start,
+          end: start + 6,
+          speakerId: p.speaker || undefined,
+          text: { ko: p.text_ko, [this.targetLang]: translatedText },
+          annotations: rawAnnotations.length > 0 ? rawAnnotations : undefined,
+        };
+        console.info(`[Kaptik WS] Stage2 t=${start.toFixed(1)}s [${this.targetLang}]: "${translatedText}"`);
+        this.onCueReady(cue);
+      }
+      return;
+    }
+
     if (msg.type === "ack") {
       const ackMsg = msg as WSAckMessage;
       console.info(`[Kaptik WS] ack — session=${ackMsg.session_id ?? ""}`);
@@ -180,41 +209,5 @@ export class StreamingSession {
       return;
     }
 
-    // Stage1: 한국어 원문 수신
-    if ("stage" in msg && msg.stage === 1) {
-      const stage1Msg = msg as WSStage1Message;
-      const ts = stage1Msg.ts;
-      this.pending.set(ts, {
-        text_ko: stage1Msg.text_ko ?? "",
-        speaker: stage1Msg.speaker ?? "",
-      });
-      // ts는 백엔드가 seek_sec를 이미 더한 절대 시각(ms) → /1000만 하면 됨
-      console.info(`[Kaptik WS] Stage1 t=${(ts / 1000).toFixed(1)}s: "${stage1Msg.text_ko ?? ""}"`);
-      return;
-    }
-
-    // Stage2: 번역 완료 (streaming=true인 중간 토큰은 무시, final만 처리)
-    if ("stage" in msg && msg.stage === 2 && !msg.streaming) {
-      const stage2Msg = msg as WSStage2Message;
-      const ts = stage2Msg.ts;
-      const p = this.pending.get(ts);
-      if (!p) return;
-      this.pending.delete(ts);
-
-      // ts = chunk.start_ms + seek_sec * 1000 (백엔드에서 절대값으로 변환)
-      // seekSec를 다시 더하면 두 배가 되므로 /1000만 사용
-      const start = ts / 1000;
-      const rawAnnotations = Array.isArray(stage2Msg.annotations) ? stage2Msg.annotations : [];
-      const translatedText = stage2Msg.text_en ?? "";
-      const cue: SubtitleCue = {
-        start,
-        end: start + 6,
-        speakerId: p.speaker || undefined,
-        text: { ko: p.text_ko, [this.targetLang]: translatedText },
-        annotations: rawAnnotations.length > 0 ? rawAnnotations : undefined,
-      };
-      console.info(`[Kaptik WS] Stage2 t=${start.toFixed(1)}s [${this.targetLang}]: "${translatedText}"`);
-      this.onCueReady(cue);
-    }
   }
 }
