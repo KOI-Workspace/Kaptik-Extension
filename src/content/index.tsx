@@ -75,6 +75,8 @@ class SubtitleController {
   private speakerIdTimer: number | undefined = undefined;
   /** 현재 세션에서 화자 식별이 한 번이라도 성공했는지 */
   private speakerIdentifiedOnce = false;
+  /** 마운트 전 도착한 라이브 CUE_READY를 임시 보관. 마운트 완료 직후 즉시 적용 */
+  private pendingLiveCues: { videoId: string; cues: SubtitleCue[] } | null = null;
 
   constructor(private adapter: SiteAdapter) {}
 
@@ -164,6 +166,9 @@ class SubtitleController {
             this.mounted.lastVodCues = message.cues;
             this.mounted.handle.updateCues(message.cues);
           }
+        } else if (!this.mounted && message.cues.length > 0) {
+          // evaluate() 완료 전 도착 — 마운트 후 즉시 적용할 수 있도록 최신 cue를 보관
+          this.pendingLiveCues = { videoId: message.videoId, cues: message.cues };
         }
       } else if (message?.type === "CUES_ALL_READY") {
         if (
@@ -384,6 +389,14 @@ class SubtitleController {
       this.mounted = { videoId, panelContainer: dockColumn, overlayContainer: container, handle, video, isLive, vodCuesReady: false, lastVodCues: [] };
 
       if (useCapture) {
+        // 마운트 전 도착한 cue가 있으면 즉시 표시 (evaluate 중 CUE_READY 유실 방지)
+        const pending = this.pendingLiveCues;
+        this.pendingLiveCues = null;
+        if (pending?.videoId === videoId && pending.cues.length > 0 && !this.isAdPlaying()) {
+          this.mounted.handle.updateCues(pending.cues);
+        }
+
+        // 서버/storage에서 이전 세션 cue 복원 (새 세션이라 없을 수 있음)
         chrome.runtime.sendMessage({
           type: "GET_LIVE_CUES",
           platform: this.adapter.platform,
@@ -556,6 +569,7 @@ class SubtitleController {
     clearTimeout(this.speakerIdTimer);
     this.speakerIdTimer = undefined;
     this.speakerIdentifiedOnce = false;
+    this.pendingLiveCues = null;
     this.videoCleanup?.();
     this.videoCleanup = null;
     this.startStreamingFn = null;
