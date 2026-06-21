@@ -33,6 +33,11 @@ const streamingSessions = new Map<
 >();
 
 /** tabId → 라이브 스트리밍 세션 상태 */
+interface AdPeriod {
+  startMs: number;
+  endMs: number | null; // null = 아직 재생 중
+}
+
 interface LiveSession {
   sessionId: string;
   platform: Platform;
@@ -40,6 +45,10 @@ interface LiveSession {
   captureStartVideoTime: number;
   cues: SubtitleCue[];
   pending: Map<number, { text_ko: string; speaker: string; cached: boolean }>;
+  /** 광고 구간(영상 시각 ms). startMs~endMs 사이 ts를 가진 cue는 렌더링 제외 */
+  adPeriods: AdPeriod[];
+  /** 마지막으로 알려진 영상 재생 위치(ms) — 광고 구간 계산에 사용 */
+  lastKnownVideoMs: number;
   /** content의 현재 재생 위치를 주기적으로 offscreen에 전달하는 타이머 (타임싱크용) */
   timeSyncTimer?: ReturnType<typeof setInterval>;
 }
@@ -370,6 +379,8 @@ async function handleStartLiveStreaming(
     captureStartVideoTime,
     cues: [],
     pending: new Map(),
+    adPeriods: [],
+    lastKnownVideoMs: captureStartVideoTime * 1000,
   };
   liveSessions.set(tabId, session);
 
@@ -398,6 +409,17 @@ async function handleStartLiveStreaming(
 
   await ensureOffscreen();
 
+  // 캡처 시작 전 광고 상태 확인 → 프리롤 광고가 재생 중이면 처음부터 무음 처리
+  let initialMuted = false;
+  try {
+    const adState = await chrome.tabs.sendMessage(tabId, { type: "GET_AD_STATE" });
+    if (typeof adState === "boolean" && adState) {
+      initialMuted = true;
+      session.adPeriods.push({ startMs: 0, endMs: null });
+      console.info(`[Kaptik BG Live] 캡처 시작 시 광고 감지 → 초기 무음 모드`);
+    }
+  } catch { /* content script 미응답 무시 */ }
+
   chrome.runtime.sendMessage({
     type: "CAPTURE_TAB",
     streamId,
@@ -408,28 +430,42 @@ async function handleStartLiveStreaming(
     videoTitle,
     videoUrl,
     captureStartSec: captureStartVideoTime,
+    initialMuted,
   }).catch(() => {});
 
   // content의 현재 재생 위치(초)를 0.5초마다 받아 offscreen에 전달 → 서버가 자막을 영상 위치에 정확히 꽂음.
   // 점프(seek)해도 다음 폴링에서 즉시 반영되므로 라이브 되감기/VOD 앞뒤 점프 모두 정렬됨.
-  let lastAdState: boolean | null = null;
+  let lastAdState: boolean | null = initialMuted ? true : null;
   session.timeSyncTimer = setInterval(() => {
     chrome.tabs.sendMessage(tabId, { type: "GET_VIDEO_TIME" })
       .then((t: unknown) => {
         if (typeof t === "number" && Number.isFinite(t)) {
-          chrome.runtime.sendMessage({ type: "UPDATE_VIDEO_TIME", videoMs: Math.round(t * 1000) }).catch(() => {});
+          session.lastKnownVideoMs = Math.round(t * 1000);
+          chrome.runtime.sendMessage({ type: "UPDATE_VIDEO_TIME", videoMs: session.lastKnownVideoMs }).catch(() => {});
         }
       })
       .catch(() => { /* content script 미응답 무시 */ });
 
-    // 광고 여부를 같은 주기로 물어 offscreen 무음 처리.
-    // 캡처 세션이 도는 한 항상 실행되므로 자동 재개/재진입에도 작동한다.
+    // 광고 상태를 같은 주기로 확인하고 광고 구간(adPeriods)을 기록.
+    // 감지 지연(최대 500ms)과 STT 파이프라인 지연을 감안해 구간 전후에 여유를 둔다.
     chrome.tabs.sendMessage(tabId, { type: "GET_AD_STATE" })
       .then((isAd: unknown) => {
         if (typeof isAd !== "boolean") return;
         if (isAd !== lastAdState) {
           lastAdState = isAd;
-          console.info(`[Kaptik BG Live] 광고 ${isAd ? "감지 → 무음 처리" : "종료 → 캡처 재개"} (tab ${tabId})`);
+          if (isAd) {
+            // 광고 시작: 감지 지연 2초를 소급 적용
+            const startMs = Math.max(0, session.lastKnownVideoMs - 2000);
+            session.adPeriods.push({ startMs, endMs: null });
+            console.info(`[Kaptik BG Live] 광고 감지 → 무음 처리 (tab ${tabId}, startMs=${startMs})`);
+          } else {
+            // 광고 종료: STT 파이프라인 지연(최대 5초)을 감안해 endMs에 버퍼 추가
+            const last = session.adPeriods[session.adPeriods.length - 1];
+            if (last && last.endMs === null) {
+              last.endMs = session.lastKnownVideoMs + 5000;
+            }
+            console.info(`[Kaptik BG Live] 광고 종료 → 캡처 재개 (tab ${tabId}, endMs=${session.adPeriods[session.adPeriods.length - 1]?.endMs})`);
+          }
         }
         chrome.runtime.sendMessage({ type: "SET_CAPTURE_MUTED", muted: isAd }).catch(() => {});
       })
@@ -492,6 +528,15 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
     const p = session.pending.get(ts);
     if (!p) return;
     session.pending.delete(ts);
+
+    // 광고 구간 ts 필터: 감지 전/파이프라인 지연으로 서버에 전송된 광고 음성을 렌더링에서 제외
+    const isAdCue = session.adPeriods.some(
+      (period) => ts >= period.startMs && (period.endMs === null || ts <= period.endMs),
+    );
+    if (isAdCue) {
+      console.info(`[Kaptik BG Live] 광고 구간 CUE 필터 (ts=${ts}ms): "${p.text_ko}"`);
+      return;
+    }
 
     // 서버가 캡처 시작 위치(앵커)를 더해 콘텐츠 절대 ts로 보내주므로 그대로 사용.
     // cached/non-cached 모두 동일 기준 → 클라이언트에서 offset 추가 안 함(이중 적용 방지).

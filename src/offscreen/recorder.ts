@@ -16,6 +16,8 @@ interface CaptureTabMsg {
   videoUrl?: string;
   /** 캡처 시작 시점의 영상 재생 위치(초) — 서버가 자막 ts 앵커로 사용 */
   captureStartSec?: number;
+  /** 캡처 시작 시점에 이미 광고가 재생 중이면 true — 처음부터 무음 처리 */
+  initialMuted?: boolean;
 }
 
 let activeStream: MediaStream | null = null;
