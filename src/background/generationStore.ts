@@ -184,10 +184,18 @@ export async function getLocalStatus(
     etaSeconds = Math.max(0, Math.ceil((job.durationMs - elapsed) / 1000));
   }
 
+  // 백엔드 pct가 없을 때의 폴백 진행률.
+  // 기존 min(0.99, elapsed/duration)은 예상 시간을 넘기면 99%에 '하드 정지'해
+  // 멈춘 듯 보였다. 예상 시간(frac=1)까지는 95%까지 선형으로 차오르고, 이후엔
+  // 99%를 향해 점근(천천히 접근)시켜 초과되더라도 미세하게나마 계속 전진하게 한다.
+  const frac = elapsed / job.durationMs;
+  const fallbackProgress =
+    frac < 1 ? frac * 0.95 : Math.min(0.99, 0.95 + 0.04 * (1 - Math.exp(-(frac - 1))));
+
   return {
     state: "generating",
     etaSeconds,
-    progress: job.pct ?? Math.min(0.99, elapsed / job.durationMs),
+    progress: job.pct ?? fallbackProgress,
     step: job.step,
   };
 }

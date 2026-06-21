@@ -66,6 +66,10 @@ class SubtitleController {
   private startStreamingFn: ((seekSec: number, keepCues?: boolean) => void) | null = null;
   /** 평가 진행 중 플래그 — 긴 await 동안 중복 evaluate가 끼어들어 취소시키는 것을 방지 */
   private evaluating = false;
+  /** 1500ms 주기 evaluate 타이머 ID (컨텍스트 무효화 시 정리용) */
+  private evalTimer: number | undefined = undefined;
+  /** 확장 컨텍스트 무효화로 폐기됨 — 이후 모든 동작 no-op */
+  private disposed = false;
   /** 30초 화자 식별 대기 타이머 */
   private speakerIdTimer: number | undefined = undefined;
   /** 현재 세션에서 화자 식별이 한 번이라도 성공했는지 */
@@ -101,11 +105,18 @@ class SubtitleController {
     onSettingsChanged((s) => {
       const prevLanguage = this.settings.language;
       this.settings = s;
-      // 언어 변경 시: 기존 자막 즉시 제거 후 evaluate
-      // evaluate 내부에서 requestStatus(language)를 호출하면 새 언어 기준으로 체크하므로
-      // generating 상태라면 마운트 안 하고 대기, 완료되면 SUBTITLES_READY로 재마운트된다
       if (prevLanguage !== s.language && this.mounted) {
-        this.teardown();
+        if (this.adapter.alwaysCapture) {
+          // 라이브 캡처(위버스 등): 언어 변경 시 캡처 세션을 끊으면 안 된다(STOP 금지).
+          // 끊으면 광고 차단 타이머까지 멈추고 자동 재시작 트리거가 없어 자막이 영영 사라진다.
+          // 화면의 이전 언어 자막만 즉시 비우고, 백그라운드의 언어 전환(set_lang)이 보내주는
+          // 새 언어 cue로 다시 채운다.
+          this.mounted.handle.updateCues([]);
+        } else {
+          // YouTube VOD: 기존 자막 제거 후 evaluate → 새 언어 기준으로 재평가.
+          // generating이면 대기, 완료되면 SUBTITLES_READY로 재마운트된다.
+          this.teardown();
+        }
       }
       void this.evaluate();
     });
@@ -195,7 +206,7 @@ class SubtitleController {
     });
 
     // SPA 내부에서 video만 교체되는 경우 대비 주기 점검
-    setInterval(() => void this.evaluate(), 1500);
+    this.evalTimer = window.setInterval(() => void this.evaluate(), 1500);
 
     // 화면 폭 변경(반응형) → 패널 도킹 위치(우측 ↔ 영상 아래) 재평가
     let resizeTimer: number | undefined;
@@ -209,6 +220,13 @@ class SubtitleController {
 
   /** 현재 상태에 맞춰 자막 UI를 표시/숨김 처리한다. */
   private async evaluate() {
+    if (this.disposed) return;
+    // 확장 리로드/업데이트로 컨텍스트가 죽었으면 더 이상 동작하지 않고 정리한다.
+    // (죽은 인스턴스가 1500ms 타이머로 chrome API를 호출해 "Extension context invalidated"를 쏟는 것 방지)
+    if (!this.extensionAlive()) {
+      this.dispose();
+      return;
+    }
     // 이미 평가 중이면 끼어들지 않는다 (긴 await가 취소되는 무한 루프 방지)
     if (this.evaluating) return;
     this.evaluating = true;
@@ -478,6 +496,32 @@ class SubtitleController {
   }
 
   /** 표시 중인 자막 UI와 스트리밍 세션을 제거한다. */
+  /** 확장 컨텍스트가 아직 유효한지. 리로드/업데이트 시 content script는 죽은 참조를 들고 남는다. */
+  private extensionAlive(): boolean {
+    try {
+      return Boolean(chrome.runtime?.id);
+    } catch {
+      return false;
+    }
+  }
+
+  /** 컨텍스트 무효화로 폐기 — 죽은 인스턴스가 타이머/리스너로 에러를 쏟지 않도록 모두 정리한다. */
+  private dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    if (this.evalTimer !== undefined) clearInterval(this.evalTimer);
+    this.evalTimer = undefined;
+    clearTimeout(this.speakerIdTimer);
+    this.speakerIdTimer = undefined;
+    this.videoCleanup?.();
+    this.videoCleanup = null;
+    this.startStreamingFn = null;
+    // 컨텍스트가 죽었으므로 background에 메시지를 보내지 않고 화면 UI만 제거한다.
+    this.mounted?.handle.destroy();
+    this.mounted = null;
+    console.info("[Kaptik] 확장 컨텍스트 무효화 감지 → content script 정리 (탭 새로고침 필요)");
+  }
+
   private teardown() {
     clearTimeout(this.speakerIdTimer);
     this.speakerIdTimer = undefined;
@@ -486,8 +530,13 @@ class SubtitleController {
     this.videoCleanup = null;
     this.startStreamingFn = null;
     if (this.mounted) {
-      chrome.runtime.sendMessage({ type: "STOP_STREAMING" }).catch(() => {});
-      chrome.runtime.sendMessage({ type: "STOP_LIVE_STREAMING" }).catch(() => {});
+      // 컨텍스트 무효화 시 sendMessage가 동기적으로 throw하므로 try로 감싼다 (.catch는 동기 throw를 못 잡음)
+      try {
+        chrome.runtime.sendMessage({ type: "STOP_STREAMING" }).catch(() => {});
+        chrome.runtime.sendMessage({ type: "STOP_LIVE_STREAMING" }).catch(() => {});
+      } catch {
+        /* 확장 리로드로 컨텍스트 무효화 — 무시 */
+      }
     }
     this.mounted?.handle.destroy();
     this.mounted = null;

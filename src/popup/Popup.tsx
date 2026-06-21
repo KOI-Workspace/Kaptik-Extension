@@ -13,6 +13,7 @@ import { resolveAdapter } from "@/content/siteAdapters";
 import {
   requestStatus,
   startGeneration,
+  setLiveLang,
 } from "@/shared/messaging";
 import {
   LANGUAGE_LABELS,
@@ -206,6 +207,16 @@ export function Popup() {
   const handleLanguageChange = (newLang: LanguageCode) => {
     if (!target) return;
     patch({ language: newLang });
+
+    // alwaysCapture(위버스 등) 라이브 캡처: 언어 변경 = 캡처를 유지한 채 서버 번역 언어만 전환.
+    // 이전 언어 자막은 비우고 새 언어로 다시 쌓인다 (광고 차단 등 나머지 로직은 그대로).
+    // VOD처럼 generating으로 되돌리지 않아 설정창(언어 선택)이 유지된다.
+    if (target.alwaysCapture && tabInfoRef.current) {
+      setLiveLang(tabInfoRef.current.id, newLang);
+      return;
+    }
+
+    // YouTube VOD: 새 언어로 강제 재생성
     prevStatusStateRef.current = "generating";
     setStatus({ state: "generating", etaSeconds: 0, progress: 0 });
     void startGeneration(target.platform, target.videoId, true, newLang).then((eta) => {
@@ -440,11 +451,53 @@ export function GeneratingView({
 }) {
   const stepLabel = status.step ? (STEP_LABELS[status.step] ?? null) : null;
 
+  // 라이브 캡처는 전체 분량을 미리 알 수 없어 정확한 퍼센트 계산이 불가능하다.
+  // 이 경우엔 퍼센트 대신 좌우로 흐르는 불확정(indeterminate) 진행바로 폴백한다.
+  const indeterminate = liveCapturing;
+
+  // 화면에 보이는 퍼센트(displayPct)를 실제 진행률과 분리해 부드럽게 끌어올린다.
+  // 백엔드 진행률은 2초 간격 폴링이라 그대로 그리면 툭툭 튀고, 값이 잠깐 멈추면
+  // 숫자도 얼어붙어 "99%에서 멈춘 듯한" 인상을 준다. 그래서 매 50ms ease로 보간하고,
+  // 절대 뒤로 가지 않게(단조 증가) 하며, 정체 구간에도 아주 조금씩 전진시킨다.
+  const targetPct = Math.min(99, status.progress * 100);
+  const targetRef = useRef(targetPct);
+  targetRef.current = targetPct;
+  const [displayPct, setDisplayPct] = useState(targetPct);
+
+  useEffect(() => {
+    if (indeterminate) return;
+    const id = setInterval(() => {
+      setDisplayPct((prev) => {
+        const target = targetRef.current;
+        if (prev < target) {
+          // 목표보다 낮으면 ease로 빠르게 따라잡는다(최소 0.5%/틱 보장)
+          return Math.min(target, prev + Math.max(0.5, (target - prev) * 0.15));
+        }
+        // 목표에 도달했으면 멈춘 느낌을 없애려 목표보다 살짝 위(+4%, 최대 99%)까지만 미세 전진
+        const creepCap = Math.min(99, target + 4);
+        if (prev < creepCap) return Math.min(creepCap, prev + 0.04);
+        return prev;
+      });
+    }, 50);
+    return () => clearInterval(id);
+  }, [indeterminate]);
+
   return (
     <div className="state-block">
-      <div className="spinner" />
       <div className="state-title">{t.generatingTitle}</div>
       {stepLabel && <div className="state-step">{stepLabel}</div>}
+      {indeterminate ? (
+        <div className="progress-track progress-indeterminate">
+          <div className="progress-fill-indeterminate" />
+        </div>
+      ) : (
+        <div className="progress-wrap">
+          <div className="progress-track">
+            <div className="progress-fill" style={{ width: `${displayPct}%` }} />
+          </div>
+          <div className="progress-pct">{Math.round(displayPct)}%</div>
+        </div>
+      )}
       <div className="state-note">
         {liveCapturing ? t.liveCapturingNote : t.generatingNote}
       </div>

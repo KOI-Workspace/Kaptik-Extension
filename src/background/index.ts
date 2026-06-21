@@ -43,6 +43,8 @@ interface LiveSession {
   platform: Platform;
   videoId: string;
   captureStartVideoTime: number;
+  /** 현재 서버에 요청 중인 번역 언어. 언어 변경 시 set_lang으로 전환하고 cue를 초기화한다. */
+  language: string;
   cues: SubtitleCue[];
   pending: Map<number, { text_ko: string; speaker: string; cached: boolean }>;
   /** 광고 구간(영상 시각 ms). startMs~endMs 사이 ts를 가진 cue는 렌더링 제외 */
@@ -386,6 +388,7 @@ async function handleStartLiveStreaming(
     platform,
     videoId,
     captureStartVideoTime,
+    language,
     cues: [],
     pending: new Map(),
     adPeriods: [],
@@ -503,6 +506,28 @@ function handleStopLiveStreaming(tabId: number): void {
   console.info(`[Kaptik BG Live] 라이브 스트리밍 중단 tabId=${tabId}`);
 }
 
+/**
+ * 라이브 캡처 중 번역 언어를 전환한다 (방식 A: 캡처는 유지, 서버 번역 언어만 교체).
+ * 언어가 바뀌면 "아예 새로운 자막"으로 취급해 이전 언어 cue를 모두 버리고 화면을 비운다.
+ * 광고 구간(adPeriods)·타임싱크 등 나머지 상태는 그대로 유지되므로 광고 차단도 끊김 없이 동작한다.
+ */
+function handleSetLiveLang(tabId: number, language: string): void {
+  const session = liveSessions.get(tabId);
+  if (session) {
+    if (session.language === language) return; // 동일 언어면 무시
+    session.language = language;
+    // 이전 언어 자막을 완전히 폐기 — 새 언어 cue가 이어붙는 게 아니라 처음부터 새로 쌓이게 한다.
+    session.cues = [];
+    session.pending.clear();
+    // 화면의 이전 언어 자막을 즉시 비운다 (새 언어 cue가 도착할 때까지 빈 상태 유지)
+    const clearMsg: BroadcastMessage = { type: "CUE_READY", videoId: session.videoId, cues: [] };
+    chrome.tabs.sendMessage(tabId, clearMsg).catch(() => {});
+    console.info(`[Kaptik BG Live] 라이브 언어 전환 → ${language} (tab ${tabId}, 이전 자막 초기화)`);
+  }
+  // offscreen이 활성 WS로 set_lang을 보내도록 전달 (이후 자막부터 새 언어로 번역됨)
+  chrome.runtime.sendMessage({ type: "SET_LANG", language }).catch(() => {});
+}
+
 /** 오프스크린에서 전달된 STT 메시지를 처리해 CUE_READY를 브로드캐스트한다. */
 function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
   const session = liveSessions.get(tabId);
@@ -550,18 +575,21 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
     // 서버가 캡처 시작 위치(앵커)를 더해 콘텐츠 절대 ts로 보내주므로 그대로 사용.
     // cached/non-cached 모두 동일 기준 → 클라이언트에서 offset 추가 안 함(이중 적용 방지).
     const start = ts / 1000;
+    // 번역 텍스트는 현재 세션 언어 키에 저장한다. en으로 하드코딩하면 일본어(ja)·인도네시아어(id) 등이
+    // UI의 pickText(text, language)에서 매칭되지 않아 엉뚱한 폴백으로 표시된다.
+    const translated = String(data.text_en ?? "");
     const cue: SubtitleCue = {
       start,
       end: start + 6,
       speakerId: p.speaker || undefined,
-      text: { ko: p.text_ko, en: String(data.text_en ?? "") },
+      text: { ko: p.text_ko, [session.language]: translated },
       annotations: (data.annotations as SubtitleCue["annotations"]) ?? [],
     };
 
     session.cues.push(cue);
     session.cues.sort((a, b) => a.start - b.start);
 
-    console.info(`[Kaptik BG Live] CUE #${session.cues.length} → tab ${tabId}: [ko] "${p.text_ko}" / [en] "${String(data.text_en ?? "")}" (ts=${ts}ms, cached=${p.cached})`);
+    console.info(`[Kaptik BG Live] CUE #${session.cues.length} → tab ${tabId}: [ko] "${p.text_ko}" / [${session.language}] "${translated}" (ts=${ts}ms, cached=${p.cached})`);
 
     const msg: BroadcastMessage = { type: "CUE_READY", videoId: session.videoId, cues: [...session.cues] };
     chrome.tabs.sendMessage(tabId, msg).catch(() => {});
@@ -752,8 +780,7 @@ chrome.runtime.onMessage.addListener(
             return { type: "LIVE_ACTIVE", active: tabId != null && liveSessions.has(tabId) };
           }
           case "SET_LIVE_LANG": {
-            // offscreen이 활성 WS로 set_lang을 보내도록 전달 (이후 자막부터 새 언어)
-            chrome.runtime.sendMessage({ type: "SET_LANG", language: req.language }).catch(() => {});
+            handleSetLiveLang(req.tabId, req.language);
             return { type: "ERR", error: "" };
           }
           default:

@@ -129,7 +129,7 @@ const SCENARIOS: Scenario[] = [
     render: () => (
       <>
         <PreviewHeader t={t} plan="pro" accountMenuOpen onToggleMenu={() => {}} showSwitch={false} switchOn={false} />
-        <NoneView t={t} onGenerate={() => {}} />
+        <NoneView t={t} settings={baseSettings} patch={() => {}} onGenerate={() => {}} />
       </>
     ),
   },
@@ -140,7 +140,7 @@ const SCENARIOS: Scenario[] = [
     render: ({ accountMenuOpen, toggleAccountMenu }) => (
       <>
         <PreviewHeader t={t} plan="free" accountMenuOpen={accountMenuOpen} onToggleMenu={toggleAccountMenu} showSwitch={false} switchOn={false} />
-        <NoneView t={t} onGenerate={() => {}} />
+        <NoneView t={t} settings={baseSettings} patch={() => {}} onGenerate={() => {}} />
       </>
     ),
   },
