@@ -67,10 +67,10 @@ async function startCapture(msg: CaptureTabMsg): Promise<void> {
 
   activeStream = stream;
 
-  // 안전장치: 새 캡처 시작 시 무음 상태를 반드시 해제 (이전 세션의 광고 무음이 남아
-  // 본편 자막이 영영 안 만들어지는 것을 방지)
-  adMuted = false;
-  adMutedSince = 0;
+  // 캡처 시작 시 무음 상태 초기화.
+  // initialMuted=true이면 처음부터 광고 구간 → 즉시 무음으로 시작해 첫 오디오 청크부터 차단.
+  adMuted = msg.initialMuted ?? false;
+  adMutedSince = adMuted ? Date.now() : 0;
 
   // 타임싱크 상태 초기화 (캡처 시작 위치를 첫 영상 위치로)
   sentAudioMs = 0;
