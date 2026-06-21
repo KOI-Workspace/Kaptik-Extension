@@ -54,7 +54,8 @@
       "Bash(lsof -nP -iTCP:8000 -sTCP:LISTEN)",
       "Bash(gh run *)",
       "Bash(curl -s -m 8 https://kaptik.p-e.kr/health)",
-      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")"
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Bash(git merge worktree-fix-ad-subtitle --no-ff -m ' *)"
     ]
   }
 }
