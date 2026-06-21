@@ -795,6 +795,7 @@ function DevSettingsSection({
                   "kaptik:jobs",
                   "kaptik:cues_ready",
                   "kaptik:gen_lang",
+                  "kaptik:live_cues",
                 ]);
               }}
             >

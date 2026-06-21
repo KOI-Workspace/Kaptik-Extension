@@ -24,6 +24,7 @@ let activeStream: MediaStream | null = null;
 let activeWs: WebSocket | null = null;
 let audioCtx: AudioContext | null = null;
 let scriptProcessor: ScriptProcessorNode | null = null;
+let activeSessionId: string | null = null;
 // 탭 캡처 시 원본 탭이 음소거되므로 Audio 요소로 원음질 복원
 let playbackEl: HTMLAudioElement | null = null;
 // 광고 재생 중이면 true — 서버로 보내는 오디오만 무음(0)으로 채운다.
@@ -44,6 +45,7 @@ let lastSyncAudioMs = 0;
 
 async function startCapture(msg: CaptureTabMsg): Promise<void> {
   stopCapture();
+  activeSessionId = msg.sessionId;
 
   let stream: MediaStream;
   try {
@@ -152,7 +154,7 @@ async function startCapture(msg: CaptureTabMsg): Promise<void> {
   ws.onmessage = (e) => {
     try {
       const data = JSON.parse(e.data as string) as unknown;
-      chrome.runtime.sendMessage({ type: "LIVE_CUE_MSG", data });
+      chrome.runtime.sendMessage({ type: "LIVE_CUE_MSG", sessionId: msg.sessionId, data });
     } catch {
       /* malformed JSON — ignore */
     }
@@ -161,6 +163,7 @@ async function startCapture(msg: CaptureTabMsg): Promise<void> {
   ws.onerror = () => {
     chrome.runtime.sendMessage({
       type: "LIVE_STREAM_ERROR",
+      sessionId: msg.sessionId,
       message: "WebSocket error",
     });
   };
@@ -168,6 +171,7 @@ async function startCapture(msg: CaptureTabMsg): Promise<void> {
   ws.onclose = (ev) => {
     chrome.runtime.sendMessage({
       type: "LIVE_WS_CLOSED",
+      sessionId: msg.sessionId,
       code: ev.code,
       reason: ev.reason,
     });
@@ -185,6 +189,7 @@ function stopCapture(): void {
   activeWs = null;
   activeStream?.getTracks().forEach((t) => t.stop());
   activeStream = null;
+  activeSessionId = null;
   sentAudioMs = 0;
   lastSyncAudioMs = 0;
   latestVideoMs = 0;
@@ -193,7 +198,7 @@ function stopCapture(): void {
 }
 
 chrome.runtime.onMessage.addListener(
-  (msg: { type: string; videoMs?: number; muted?: boolean; language?: string } & Partial<CaptureTabMsg>) => {
+  (msg: { type: string; videoMs?: number; muted?: boolean; language?: string; sessionId?: string } & Partial<CaptureTabMsg>) => {
     if (msg.type === "CAPTURE_TAB") {
       void startCapture(msg as CaptureTabMsg);
     } else if (msg.type === "STOP_CAPTURE") {
@@ -210,7 +215,12 @@ chrome.runtime.onMessage.addListener(
       adMuted = next;
     } else if (msg.type === "SET_LANG") {
       // 라이브 캡처 중 언어 변경 — 서버가 이후 자막부터 새 언어로 번역
-      if (activeWs?.readyState === WebSocket.OPEN && typeof msg.language === "string") {
+      if (
+        activeSessionId &&
+        (!msg.sessionId || msg.sessionId === activeSessionId) &&
+        activeWs?.readyState === WebSocket.OPEN &&
+        typeof msg.language === "string"
+      ) {
         activeWs.send(JSON.stringify({ type: "set_lang", target_lang: msg.language }));
       }
     }

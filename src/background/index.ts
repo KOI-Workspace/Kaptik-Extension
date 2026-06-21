@@ -613,7 +613,7 @@ function handleSetLiveLang(tabId: number, language: string): void {
     console.info(`[Kaptik BG Live] 라이브 언어 전환 → ${language} (tab ${tabId}, 기존 cue ${existingCues.length}개 복원)`);
   }
   // offscreen이 활성 WS로 set_lang을 보내도록 전달 (이후 자막부터 새 언어로 번역됨)
-  chrome.runtime.sendMessage({ type: "SET_LANG", language }).catch(() => {});
+  chrome.runtime.sendMessage({ type: "SET_LANG", sessionId: session?.sessionId, language }).catch(() => {});
 }
 
 /** 오프스크린에서 전달된 STT 메시지를 처리해 CUE_READY를 브로드캐스트한다. */
@@ -798,9 +798,9 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 /** 오프스크린 → 백그라운드 내부 메시지 */
 type OffscreenMessage =
-  | { type: "LIVE_CUE_MSG"; data: Record<string, unknown> }
-  | { type: "LIVE_STREAM_ERROR"; message: string }
-  | { type: "LIVE_WS_CLOSED"; code: number; reason: string };
+  | { type: "LIVE_CUE_MSG"; sessionId: string; data: Record<string, unknown> }
+  | { type: "LIVE_STREAM_ERROR"; sessionId?: string; message: string }
+  | { type: "LIVE_WS_CLOSED"; sessionId?: string; code: number; reason: string };
 
 chrome.runtime.onMessage.addListener(
   (message: RequestMessage | OffscreenMessage, sender, sendResponse) => {
@@ -811,14 +811,19 @@ chrome.runtime.onMessage.addListener(
       message.type === "LIVE_WS_CLOSED"
     ) {
       if (message.type === "LIVE_CUE_MSG") {
-        for (const [tabId] of liveSessions) {
-          handleLiveCueMsg(tabId, message.data);
+        const matched = [...liveSessions.entries()].find(
+          ([, session]) => session.sessionId === message.sessionId,
+        );
+        if (matched) {
+          handleLiveCueMsg(matched[0], message.data);
+        } else {
+          console.info(`[Kaptik BG Live] 세션 불일치 cue 무시 sessionId=${message.sessionId}`);
         }
       } else if (message.type === "LIVE_STREAM_ERROR") {
-        console.error("[Kaptik BG Live] 라이브 스트림 오류:", message.message);
+        console.error(`[Kaptik BG Live] 라이브 스트림 오류 sessionId=${message.sessionId ?? "unknown"}:`, message.message);
         return false;
       } else if (message.type === "LIVE_WS_CLOSED") {
-        console.info(`[Kaptik BG Live] 라이브 WS 종료 code=${message.code}`);
+        console.info(`[Kaptik BG Live] 라이브 WS 종료 sessionId=${message.sessionId ?? "unknown"} code=${message.code}`);
       }
       sendResponse(null);
       return false;
