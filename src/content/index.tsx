@@ -395,7 +395,8 @@ class SubtitleController {
             res?.type === "LIVE_CUES" &&
             res.videoId === videoId &&
             this.mounted?.videoId === videoId &&
-            res.cues.length > 0
+            res.cues.length > 0 &&
+            !this.isAdPlaying()
           ) {
             this.mounted.handle.updateCues(res.cues);
           }
