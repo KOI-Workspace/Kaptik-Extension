@@ -3,11 +3,12 @@ import type {
   RequestMessage,
   ResponseMessage,
 } from "@/shared/messaging";
-import type { Member, Platform, SubtitleCue, SubtitleTrack } from "@/types/subtitle";
+import type { LanguageCode, Member, Platform, SubtitleCue, SubtitleTrack } from "@/types/subtitle";
 import { resolveMemberByName } from "@/shared/members";
 import {
   fetchSubtitleTrack,
   createJob,
+  fetchLiveSubtitles,
 } from "@/api/client";
 import { getSettings } from "@/shared/settings";
 import {
@@ -44,6 +45,7 @@ interface LiveSession {
   sessionId: string;
   platform: Platform;
   videoId: string;
+  videoUrl?: string;
   captureStartVideoTime: number;
   /** 현재 서버에 요청 중인 번역 언어. */
   language: string;
@@ -164,6 +166,32 @@ function isWithinAdPeriod(session: LiveSession, startMs: number): boolean {
   );
 }
 
+async function fetchStoredLiveCuesFromServer(
+  platform: Platform,
+  videoId: string,
+  language: string,
+  videoUrl?: string,
+): Promise<SubtitleCue[]> {
+  if (!videoUrl) return [];
+  try {
+    const settings = await getSettings();
+    const authToken = settings.devMode ? "dev" : settings.authToken;
+    const cues = await fetchLiveSubtitles({
+      serverUrl: settings.serverUrl,
+      authToken,
+      videoUrl,
+      targetLang: language as LanguageCode,
+    });
+    if (cues.length > 0) {
+      await writeLiveCues(platform, videoId, language, cues);
+    }
+    return cues;
+  } catch (e) {
+    console.warn(`[Kaptik BG Live] 서버 저장 자막 조회 실패 (${platform}/${videoId}):`, e);
+    return [];
+  }
+}
+
 
 // ── 자막 트랙 ─────────────────────────────────────────────
 async function handleGetSubtitles(
@@ -184,6 +212,7 @@ async function handleGetStatus(
   platform: Platform,
   videoId: string,
   msgLanguage?: string,
+  videoUrl?: string,
 ): Promise<ResponseMessage> {
   // YouTube가 아닌 플랫폼(Weverse 등)은 오디오 캡처 경로를 사용한다.
   // - 활성 세션 + 번역 자막(cue) 1개 이상 도착 → "available" (설정 패널 표시)
@@ -197,9 +226,14 @@ async function handleGetStatus(
     const language = msgLanguage ?? settings.language;
     if (!session) {
       const storedCues = await readLiveCues(platform, videoId, language);
+      const serverCues = storedCues.length > 0
+        ? []
+        : await fetchStoredLiveCuesFromServer(platform, videoId, language, videoUrl);
       return {
         type: "STATUS_OK",
-        status: storedCues.length > 0 ? { state: "available" } : { state: "none" },
+        status: storedCues.length > 0 || serverCues.length > 0
+          ? { state: "available" }
+          : { state: "none" },
       };
     }
     // 현재 언어 칠판에 cue가 하나라도 있으면 available (언어를 방금 바꿔서 아직 새 cue가 없더라도
@@ -210,6 +244,10 @@ async function handleGetStatus(
     }
     const storedCues = await readLiveCues(platform, videoId, language);
     if (storedCues.length > 0) {
+      return { type: "STATUS_OK", status: { state: "available" } };
+    }
+    const serverCues = await fetchStoredLiveCuesFromServer(platform, videoId, language, videoUrl);
+    if (serverCues.length > 0) {
       return { type: "STATUS_OK", status: { state: "available" } };
     }
     return { type: "STATUS_OK", status: { state: "generating", etaSeconds: 0, progress: 0 } };
@@ -421,6 +459,7 @@ async function handleStartLiveStreaming(
     sessionId,
     platform,
     videoId,
+    videoUrl,
     captureStartVideoTime,
     language,
     cuesByLang: new Map(),
@@ -561,9 +600,13 @@ function handleSetLiveLang(tabId: number, language: string): void {
     chrome.tabs.sendMessage(tabId, msg).catch(() => {});
     if (existingCues.length === 0) {
       void readLiveCues(session.platform, session.videoId, language).then((storedCues) => {
-        if (storedCues.length === 0 || session.language !== language) return;
-        session.cuesByLang.set(language, storedCues);
-        const storedMsg: BroadcastMessage = { type: "CUE_READY", videoId: session.videoId, cues: storedCues };
+        if (session.language !== language) return;
+        if (storedCues.length > 0) return storedCues;
+        return fetchStoredLiveCuesFromServer(session.platform, session.videoId, language, session.videoUrl);
+      }).then((cues) => {
+        if (!cues || cues.length === 0 || session.language !== language) return;
+        session.cuesByLang.set(language, cues);
+        const storedMsg: BroadcastMessage = { type: "CUE_READY", videoId: session.videoId, cues };
         chrome.tabs.sendMessage(tabId, storedMsg).catch(() => {});
       });
     }
@@ -788,7 +831,7 @@ chrome.runtime.onMessage.addListener(
           case "GET_SUBTITLES":
             return await handleGetSubtitles(req.platform, req.videoId);
           case "GET_STATUS":
-            return await handleGetStatus(req.platform, req.videoId, req.language);
+            return await handleGetStatus(req.platform, req.videoId, req.language, req.videoUrl);
           case "START_GENERATION":
             return await handleStartGeneration(req.platform, req.videoId, req.force, req.language);
           case "START_STREAMING": {
@@ -837,11 +880,35 @@ chrome.runtime.onMessage.addListener(
               if (!req.platform || !req.videoId || !req.language) {
                 return { type: "LIVE_CUES", videoId: "", cues: [] };
               }
+              const localCues = await readLiveCues(req.platform, req.videoId, req.language);
+              if (localCues.length > 0) {
+                return { type: "LIVE_CUES", videoId: req.videoId, cues: localCues };
+              }
               return {
                 type: "LIVE_CUES",
                 videoId: req.videoId,
-                cues: await readLiveCues(req.platform, req.videoId, req.language),
+                cues: await fetchStoredLiveCuesFromServer(
+                  req.platform,
+                  req.videoId,
+                  req.language,
+                  req.videoUrl,
+                ),
               };
+            }
+            if (req.platform && req.videoId && req.language) {
+              const langCues = session.cuesByLang.get(session.language) ?? [];
+              if (langCues.length === 0) {
+                const serverCues = await fetchStoredLiveCuesFromServer(
+                  req.platform,
+                  req.videoId,
+                  req.language,
+                  req.videoUrl,
+                );
+                if (serverCues.length > 0) {
+                  session.cuesByLang.set(req.language, serverCues);
+                  return { type: "LIVE_CUES", videoId: session.videoId, cues: serverCues };
+                }
+              }
             }
             return {
               type: "LIVE_CUES",

@@ -1,6 +1,8 @@
 import type {
   Annotation,
+  LanguageCode,
   Platform,
+  SubtitleCue,
   SubtitleStatus,
   SubtitleTrack,
 } from "@/types/subtitle";
@@ -34,6 +36,18 @@ export interface JobResponse {
     end_ms: number;
     speaker: string;
     annotations: Annotation[];
+  }>;
+}
+
+interface LiveSubtitlesResponse {
+  video_url: string;
+  target_lang: string;
+  subtitles: Array<{
+    text_ko: string;
+    text_en: string;
+    speaker: string;
+    ts: number;
+    annotations?: Annotation[];
   }>;
 }
 
@@ -71,6 +85,39 @@ export async function fetchSubtitleTrack(
 ): Promise<SubtitleTrack> {
   console.info(`[Kaptik] fetchSubtitleTrack mock fallback (${platform}/${videoId})`);
   return getMockTrack(platform, videoId);
+}
+
+/** 서버에 저장된 라이브/캡처 자막을 조회한다. */
+export async function fetchLiveSubtitles(opts: {
+  serverUrl: string;
+  authToken: string;
+  videoUrl: string;
+  targetLang: LanguageCode;
+}): Promise<SubtitleCue[]> {
+  const base = wsUrlToHttp(opts.serverUrl);
+  const params = new URLSearchParams({
+    video_url: opts.videoUrl,
+    target_lang: opts.targetLang,
+  });
+  if (opts.authToken) params.set("token", opts.authToken);
+  const res = await fetchJson<LiveSubtitlesResponse>(
+    `${base}/live/subtitles?${params.toString()}`,
+    { authToken: opts.authToken },
+  );
+
+  return res.subtitles
+    .map((sub): SubtitleCue => ({
+      start: Math.max(0, Number(sub.ts) / 1000),
+      end: Math.max(0, Number(sub.ts) / 1000) + 6,
+      speakerId: sub.speaker || undefined,
+      text: { ko: sub.text_ko, [opts.targetLang]: sub.text_en },
+      annotations: sub.annotations ?? [],
+    }))
+    .sort((a, b) => a.start - b.start)
+    .map((cue, i, cues) => {
+      const next = cues[i + 1];
+      return next ? { ...cue, end: Math.min(cue.end, next.start - 0.1) } : cue;
+    });
 }
 
 /**

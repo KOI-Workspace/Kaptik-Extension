@@ -3,13 +3,13 @@ import type { Member, Platform, SubtitleCue, SubtitleStatus, SubtitleTrack } fro
 /** content/popup → background 요청 메시지 */
 export type RequestMessage =
   | { type: "GET_SUBTITLES"; platform: Platform; videoId: string }
-  | { type: "GET_STATUS"; platform: Platform; videoId: string; language?: string }
+  | { type: "GET_STATUS"; platform: Platform; videoId: string; language?: string; videoUrl?: string }
   | { type: "START_GENERATION"; platform: Platform; videoId: string; force?: boolean; language?: string }
   | { type: "START_STREAMING"; youtubeUrl: string; seekSec: number; serverUrl: string; keepCues?: boolean; language?: string }
   | { type: "STOP_STREAMING" }
   | { type: "START_LIVE_STREAMING"; platform: Platform; videoId: string; captureStartVideoTime: number; videoTitle?: string; videoUrl?: string; tabId?: number }
   | { type: "STOP_LIVE_STREAMING" }
-  | { type: "GET_LIVE_CUES"; platform?: Platform; videoId?: string; language?: string }
+  | { type: "GET_LIVE_CUES"; platform?: Platform; videoId?: string; language?: string; videoUrl?: string }
   // content가 "내 탭에 라이브 캡처 세션이 있나?"를 조회한다. (tabId 없으면 sender 탭 기준)
   // alwaysCapture(Weverse) 자막 UI를 Start 이후에만 마운트하기 위한 단일 진실 소스.
   | { type: "IS_LIVE_ACTIVE"; tabId?: number }
@@ -69,8 +69,9 @@ export async function requestStatus(
   platform: Platform,
   videoId: string,
   language?: string,
+  videoUrl?: string,
 ): Promise<SubtitleStatus | null> {
-  const res = await send({ type: "GET_STATUS", platform, videoId, language });
+  const res = await send({ type: "GET_STATUS", platform, videoId, language, videoUrl });
   return res?.type === "STATUS_OK" ? res.status : null;
 }
 

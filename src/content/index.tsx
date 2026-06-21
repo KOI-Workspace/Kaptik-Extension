@@ -330,7 +330,7 @@ class SubtitleController {
       if (!useCapture) {
         // this.settings.language는 onSettingsChanged가 즉시 업데이트하므로 항상 최신값
         // language를 직접 전달해 storage 쓰기 완료 전 race condition으로 old 언어가 체크되는 것을 방지
-        const vodStatus = await requestStatus(this.adapter.platform, videoId, this.settings.language);
+        const vodStatus = await requestStatus(this.adapter.platform, videoId, this.settings.language, location.href);
         if (vodStatus?.state === "failed") {
           // 생성 자체가 불가능한 영상(예: 한국어 아님) → 패널에 안내만, 가운데 자막은 없음
           const errorTrack: SubtitleTrack = {
@@ -363,7 +363,7 @@ class SubtitleController {
       if (useCapture && this.adapter.alwaysCapture) {
         const active = await isLiveActive();
         if (!active) {
-          const storedStatus = await requestStatus(this.adapter.platform, videoId, this.settings.language);
+          const storedStatus = await requestStatus(this.adapter.platform, videoId, this.settings.language, location.href);
           if (storedStatus?.state !== "available") {
             this.teardown();
             return;
@@ -389,6 +389,7 @@ class SubtitleController {
           platform: this.adapter.platform,
           videoId,
           language: this.settings.language,
+          videoUrl: location.href,
         }, (res: ResponseMessage | undefined) => {
           if (
             res?.type === "LIVE_CUES" &&

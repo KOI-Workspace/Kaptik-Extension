@@ -123,7 +123,12 @@ export function Popup() {
 
     const poll = async () => {
       // settingsRef로 현재 language를 읽어 전달 — storage 쓰기 전 race condition 방지
-      const s = await requestStatus(target.platform, target.videoId, settingsRef.current.language);
+      const s = await requestStatus(
+        target.platform,
+        target.videoId,
+        settingsRef.current.language,
+        tabInfoRef.current?.url,
+      );
       if (active && s) {
         // 로컬 상태가 아직 "none"이지만 UI가 "generating"인 경우 — job이 백엔드에서
         // 아직 startLocalJob 전이므로 poll이 "none"을 돌려줘 UI를 되돌리지 않도록 한다.
