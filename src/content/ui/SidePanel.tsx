@@ -183,7 +183,7 @@ export function SidePanel({
                 {settings.showSpeaker && member && <Avatar member={member} size={34} />}
                 <div className="kaptik-row-main">
                   <div className="kaptik-row-head">
-                    {member?.name && (
+                    {settings.showSpeaker && member?.name && (
                       <span
                         className="kaptik-row-name"
                         style={{ color: member.color }}

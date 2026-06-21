@@ -65,7 +65,7 @@ export const SETTINGS_KEY = "kaptik:settings";
 export const DEFAULT_SETTINGS: KaptikSettings = {
   enabled: true,
   language: "en",
-  showSpeaker: true,
+  showSpeaker: false,
   fontScale: 1,
   overlayLineCount: 2,
   overlayOpacity: 0.6,

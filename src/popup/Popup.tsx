@@ -642,16 +642,14 @@ export function AvailableView({
           />
         </div>
 
-        {isLive && (
-          <div className="row">
-            <span className="row-label">{t.speakerLabel}</span>
-            <Switch
-              checked={settings.showSpeaker}
-              onChange={(v) => patch({ showSpeaker: v })}
-              ariaLabel={t.speakerLabel}
-            />
-          </div>
-        )}
+        <div className="row">
+          <span className="row-label">{t.speakerLabel}</span>
+          <Switch
+            checked={settings.showSpeaker}
+            onChange={(v) => patch({ showSpeaker: v })}
+            ariaLabel={t.speakerLabel}
+          />
+        </div>
 
         <div className="row">
           <span className="row-label">{t.panelLabel}</span>
