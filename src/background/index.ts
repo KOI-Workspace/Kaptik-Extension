@@ -633,7 +633,12 @@ async function handleStartStreaming(
     : [];
 
   const onCueReady = (newCue: SubtitleCue) => {
-    cues.push(newCue);
+    const existingIdx = cues.findIndex((c) => c.start === newCue.start);
+    if (existingIdx !== -1) {
+      cues[existingIdx] = newCue;
+    } else {
+      cues.push(newCue);
+    }
     cues.sort((a, b) => a.start - b.start);
     for (let i = 0; i < cues.length - 1; i++) {
       cues[i] = { ...cues[i], end: Math.min(cues[i].end, cues[i + 1].start - 0.1) };
