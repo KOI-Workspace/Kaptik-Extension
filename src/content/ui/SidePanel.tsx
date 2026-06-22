@@ -54,6 +54,16 @@ export function SidePanel({
   // 선택 언어에 맞춘 UI 텍스트
   const t = getMessages(settings.language);
 
+  const scrollActiveRowToBottom = () => {
+    if (!activeRowRef.current || !listRef.current) return;
+    const list = listRef.current;
+    const row = activeRowRef.current;
+    const listRect = list.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    const rowRelTop = rowRect.top - listRect.top + list.scrollTop;
+    list.scrollTop = rowRelTop - list.clientHeight + row.clientHeight + 18;
+  };
+
   // 라이브: 맨 아래를 보고 있으면 새 cue 도착 시 자동 스크롤
   useEffect(() => {
     if (!isLive) return;
@@ -62,7 +72,8 @@ export function SidePanel({
     }
   }, [activeIndex, atBottom, isLive]);
 
-  // VOD: activeIndex가 바뀔 때마다 활성 cue가 패널 내 보이는 영역 안에 있도록 스크롤.
+  // VOD: activeIndex가 아래쪽을 벗어나면 활성 cue를 패널 하단 근처에 맞춘다.
+  // 보라색 표시가 아래로 내려오다가 하단에 닿은 뒤에는 목록이 한 줄씩 따라 내려가는 UX다.
   // useLayoutEffect: paint 전에 실행되므로 잘못된 스크롤 위치가 화면에 보이지 않는다.
   useLayoutEffect(() => {
     if (isLive || !activeRowRef.current || !listRef.current) return;
@@ -72,9 +83,13 @@ export function SidePanel({
     const rowRect = row.getBoundingClientRect();
     // 이미 완전히 보이면 스크롤하지 않음
     if (rowRect.top >= listRect.top && rowRect.bottom <= listRect.bottom) return;
-    // 행이 범위 밖이면 중앙으로 이동
+    if (rowRect.bottom > listRect.bottom) {
+      scrollActiveRowToBottom();
+      return;
+    }
+    // 뒤로 이동한 경우에는 선택한 줄이 바로 보이도록 위쪽에 맞춘다.
     const rowRelTop = rowRect.top - listRect.top + list.scrollTop;
-    list.scrollTop = rowRelTop - (list.clientHeight - row.clientHeight) / 2;
+    list.scrollTop = Math.max(0, rowRelTop - 10);
   }, [activeIndex, isLive]);
 
   const handleScroll = () => {
@@ -99,13 +114,8 @@ export function SidePanel({
       if (el) el.scrollTop = el.scrollHeight;
       setAtBottom(true);
     } else if (activeRowRef.current && listRef.current) {
-      // VOD: 현재 활성 cue를 패널 중앙으로
-      const list = listRef.current;
-      const row = activeRowRef.current;
-      const listRect = list.getBoundingClientRect();
-      const rowRect = row.getBoundingClientRect();
-      const rowRelTop = rowRect.top - listRect.top + list.scrollTop;
-      list.scrollTop = rowRelTop - (list.clientHeight - row.clientHeight) / 2;
+      // VOD: 현재 활성 cue를 패널 하단 근처로
+      scrollActiveRowToBottom();
     }
   };
 
