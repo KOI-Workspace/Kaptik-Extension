@@ -378,7 +378,7 @@ class SubtitleController {
         members: {},
         speakerIdentified,
       };
-      const handle = mountDisplay(container, dockColumn, video, emptyTrack, isLive, () => this.isAdPlaying(), useCapture);
+      const handle = mountDisplay(container, dockColumn, video, emptyTrack, isLive, () => this.isAdPlaying());
       this.mounted = { videoId, panelContainer: dockColumn, overlayContainer: container, handle, video, isLive, vodCuesReady: false, lastVodCues: [] };
 
       if (useCapture) {

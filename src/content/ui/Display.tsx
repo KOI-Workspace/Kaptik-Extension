@@ -15,8 +15,6 @@ interface DisplayProps {
   isLive?: boolean;
   /** 광고가 현재 재생 중인지 확인하는 함수 */
   getIsAdPlaying?: () => boolean;
-  /** 캡처 기반 자막은 영상 시간 대신 최신 cue를 즉시 표시한다. */
-  preferLatestCue?: boolean;
 }
 
 /**
@@ -32,10 +30,9 @@ export function Display({
   panelDocked,
   isLive = false,
   getIsAdPlaying,
-  preferLatestCue = false,
 }: DisplayProps) {
   const settings = useSettings();
-  const activeIndex = useActiveIndex(video, track.cues, preferLatestCue);
+  const activeIndex = useActiveIndex(video, track.cues);
   const isAd = useAdState(getIsAdPlaying);
 
   if (!settings.enabled) return null;

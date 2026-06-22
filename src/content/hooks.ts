@@ -30,6 +30,19 @@ export function useSettings(): KaptikSettings {
 }
 
 /**
+ * 현재 영상 시간에 맞는 자막 큐 인덱스를 찾는다.
+ * 큐 사이 공백에서는 직전 큐를 유지해 히스토리 맥락을 보여준다.
+ */
+export function findActiveCueIndex(cues: SubtitleCue[], currentTime: number): number {
+  let found = -1;
+  for (let i = 0; i < cues.length; i++) {
+    if (currentTime >= cues[i].start) found = i;
+    else break;
+  }
+  return found;
+}
+
+/**
  * video의 현재 재생 위치에 해당하는 자막 큐 인덱스를 추적하는 훅.
  * requestAnimationFrame으로 현재 시각을 읽되, 인덱스가 바뀔 때만 리렌더한다.
  * @param video 기준 video 요소
@@ -39,27 +52,15 @@ export function useSettings(): KaptikSettings {
 export function useActiveIndex(
   video: HTMLVideoElement,
   cues: SubtitleCue[],
-  preferLatestCue = false,
 ): number {
   const [index, setIndex] = useState(-1);
 
   useEffect(() => {
-    if (preferLatestCue) {
-      setIndex(cues.length > 0 ? cues.length - 1 : -1);
-      return;
-    }
-
     let rafId = 0;
     let last = -2;
 
     const tick = () => {
-      const t = video.currentTime;
-      // 현재 시각에 걸린 큐를 찾고, 없으면 직전에 지나간 큐를 활성으로 본다.
-      let found = -1;
-      for (let i = 0; i < cues.length; i++) {
-        if (t >= cues[i].start) found = i;
-        else break;
-      }
+      const found = findActiveCueIndex(cues, video.currentTime);
       // 끝난 큐가 한참 지났어도 마지막 발화를 유지 (히스토리 맥락)
       if (found !== last) {
         last = found;
@@ -70,7 +71,7 @@ export function useActiveIndex(
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [video, cues, preferLatestCue]);
+  }, [video, cues]);
 
   return index;
 }
