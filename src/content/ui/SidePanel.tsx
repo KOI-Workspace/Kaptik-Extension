@@ -25,6 +25,9 @@ interface OpenAnnotation {
   annIndex: number;
 }
 
+const SEEK_CORRECTION_DELAY_MS = 350;
+const SEEK_BACKWARD_TOLERANCE_SEC = 0.75;
+
 /** 초 → m:ss 형식 */
 function formatTime(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds));
@@ -121,6 +124,13 @@ export function SidePanel({
 
   const seekTo = (start: number) => {
     video.currentTime = start;
+    window.setTimeout(() => {
+      // 일부 HLS 플레이어는 첫 seek를 앞쪽 키프레임으로 보정한다.
+      // 요청 시각보다 뒤로 밀렸으면 한 번 더 지정해 타임스탬프 위치에 맞춘다.
+      if (video.currentTime < start - SEEK_BACKWARD_TOLERANCE_SEC) {
+        video.currentTime = start;
+      }
+    }, SEEK_CORRECTION_DELAY_MS);
   };
 
   const toggleAnnotation = (cueIndex: number, annIndex: number) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findActiveCueIndex, findDisplayCueIndex } from "./hooks";
+import { findActiveCueIndex, findDisplayCueIndex, isNearLiveEdge } from "./hooks";
 import type { SubtitleCue } from "@/types/subtitle";
 
 const cues = [
@@ -37,7 +37,7 @@ describe("findDisplayCueIndex — 라이브 엣지 최신 cue 폴백", () => {
     expect(findDisplayCueIndex(cues, 36, true)).toBe(2);
   });
 
-  it("라이브가 아니면 구간 밖에서 폴백하지 않는다 (VOD 무음 구간)", () => {
+  it("라이브 엣지가 아니면 구간 밖에서 폴백하지 않는다 (VOD/되감기 무음 구간)", () => {
     expect(findDisplayCueIndex(cues, 30, false)).toBe(-1);
   });
 
@@ -60,5 +60,19 @@ describe("findDisplayCueIndex — 라이브 엣지 최신 cue 폴백", () => {
 
   it("cue가 없으면 -1", () => {
     expect(findDisplayCueIndex([], 10, true)).toBe(-1);
+  });
+});
+
+describe("isNearLiveEdge — 실시간 끝부분 판정", () => {
+  it("seekable 끝과 가까우면 라이브 엣지로 본다", () => {
+    expect(isNearLiveEdge(985, 1000)).toBe(true);
+  });
+
+  it("seekable 끝에서 많이 뒤로 가 있으면 과거 시점으로 본다", () => {
+    expect(isNearLiveEdge(900, 1000)).toBe(false);
+  });
+
+  it("seekable 정보가 없으면 되감기 없는 실시간 엣지로 본다", () => {
+    expect(isNearLiveEdge(10, null)).toBe(true);
   });
 });
