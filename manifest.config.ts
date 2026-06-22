@@ -51,7 +51,7 @@ export default function getManifest(mode: string) {
       "*://*.youtube.com/*",
       "*://*.weverse.io/*",
       "*://*.instagram.com/*",
-      "https://kaptik.p-e.kr/*",
+      "https://api.kaptik.site/*",
       ...(isDev ? ["http://localhost:8000/*"] : []),
     ],
   });
