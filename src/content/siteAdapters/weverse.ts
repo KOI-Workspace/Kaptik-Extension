@@ -11,19 +11,17 @@ const AD_MAX_DURATION_SEC = 60;
 /**
  * 영상 속성만으로 광고 영상 여부를 판정하는 순수 로직 (DOM 미접근 → 단위 테스트 가능).
  * - 광고 CDN(doubleclick 등) src면 광고
- * - 라이브 페이지의 blob + "짧은" 유한 길이 = 삽입 광고
+ * - blob + "짧은" 유한 길이 = 삽입 광고
  *   (진짜 라이브 본편=Infinity, 다시보기 본편=긴 유한값 → 광고 아님)
  * - 그 외 비-blob src는 광고로 간주
  */
 export function isLikelyAdVideo(params: {
-  isLivePage: boolean;
   src: string;
   duration: number;
 }): boolean {
-  const { isLivePage, src, duration } = params;
+  const { src, duration } = params;
   if (/doubleclick|googlesyndication|gvt1|googlevideo|adservice/i.test(src)) return true;
   if (
-    isLivePage &&
     src.startsWith("blob:") &&
     Number.isFinite(duration) &&
     duration > 0 &&
@@ -95,17 +93,16 @@ export const weverseAdapter: SiteAdapter = {
    * - 알려진 광고 CDN URL(구글 등)은 바로 감지
    * - 위버스 라이브 본편은 blob: URL + duration=Infinity(라이브 스트림)
    * - 위버스 광고(LG U+ 등 한국 브랜드)는 blob: URL이지만 duration이 짧은 유한값(광고 길이)
-   *   → 라이브 페이지에서 blob + "짧은" 유한 duration = 광고로 판정
+   *   → blob + "짧은" 유한 duration = 광고로 판정
    * - 라이브 다시보기(/live/ 유지하되 54분 등 긴 유한 duration)는 본편이므로 광고로 보지 않는다
    * 판별 핵심은 순수 함수 isLikelyAdVideo로 분리(테스트 대상). 여기선 재생/가시성만 거른다.
    */
   isAdPlaying() {
     const pageText = document.body?.innerText?.slice(0, 3000) ?? "";
-    if (/\b(skip ad|sponsored|advertisement)\b/i.test(pageText) || /광고\s*건너뛰기/.test(pageText)) {
+    if (/\b(skip ad|sponsored|advertisement)\b/i.test(pageText) || /광고/.test(pageText)) {
       return true;
     }
 
-    const isLivePage = /\/live\//.test(location.href);
     const videos = Array.from(document.querySelectorAll("video"));
     return videos.some((v) => {
       // !v.paused 제거 — 광고 일시정지 시에도 광고 소스로 인식해야 패널이 안 뜸
@@ -116,7 +113,7 @@ export const weverseAdapter: SiteAdapter = {
       const isVisible = rect.width > 80 && rect.height > 45;
       if (!isVisible) return false;
 
-      return isLikelyAdVideo({ isLivePage, src: v.currentSrc || "", duration: v.duration });
+      return isLikelyAdVideo({ src: v.currentSrc || "", duration: v.duration });
     });
   },
 };
