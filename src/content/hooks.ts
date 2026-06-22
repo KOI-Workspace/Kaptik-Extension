@@ -34,9 +34,8 @@ export function useSettings(): KaptikSettings {
  * 현재 시간이 자막 구간 밖이면 이전 자막을 유지하지 않고 비운다.
  */
 export function findActiveCueIndex(cues: SubtitleCue[], currentTime: number): number {
-  for (let i = 0; i < cues.length; i++) {
+  for (let i = cues.length - 1; i >= 0; i--) {
     const cue = cues[i];
-    if (currentTime < cue.start) return -1;
     if (currentTime >= cue.start && currentTime <= cue.end) return i;
   }
   return -1;

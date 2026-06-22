@@ -26,6 +26,7 @@ import {
 import { StreamingSession } from "@/api/wsClient";
 import { MockStreamingSession } from "@/api/mockStreamingSession";
 import { isDuplicateLiveStage1 } from "./liveCueDedup";
+import { compactLiveCues, upsertLiveCue } from "./liveCueMerge";
 
 /** 자막 트랙 메모리 캐시 (서비스 워커 생존 동안 유효) */
 const trackCache = new Map<string, SubtitleTrack>();
@@ -252,10 +253,11 @@ async function fetchStoredLiveCuesFromServer(
       videoUrl,
       targetLang: language as LanguageCode,
     });
-    if (cues.length > 0) {
-      await writeLiveCues(platform, videoId, language, cues);
+    const compactedCues = compactLiveCues(cues, language);
+    if (compactedCues.length > 0) {
+      await writeLiveCues(platform, videoId, language, compactedCues);
     }
-    return cues;
+    return compactedCues;
   } catch (e) {
     console.warn(`[Kaptik BG Live] 서버 저장 자막 조회 실패 (${platform}/${videoId}):`, e);
     return [];
@@ -299,11 +301,12 @@ async function handleGetStatus(
     }
     // 현재 언어 칠판에 cue가 하나라도 있으면 available (언어를 방금 바꿔서 아직 새 cue가 없더라도
     // 이전에 해당 언어로 쌓인 게 있으면 available로 처리 — 화면에 이미 복원돼 있음)
-    const currentLangCues = session.cuesByLang.get(session.language) ?? [];
+    const currentLangCues = compactLiveCues(session.cuesByLang.get(session.language) ?? [], session.language);
+    if (currentLangCues.length > 0) session.cuesByLang.set(session.language, currentLangCues);
     if (currentLangCues.length > 0) {
       return { type: "STATUS_OK", status: { state: "available" } };
     }
-    const storedCues = await readLiveCues(platform, videoId, language);
+    const storedCues = compactLiveCues(await readLiveCues(platform, videoId, language), language);
     if (storedCues.length > 0) {
       return { type: "STATUS_OK", status: { state: "available" } };
     }
@@ -556,7 +559,8 @@ async function handleStartLiveStreaming(
   // 세션 시작 시 저장된 cue 선로드.
   // seek 후 재마운트 시에도 기존 번역이 즉시 보이게 하고,
   // 서버의 cached=True 재전송이 Stage1에서 중복으로 판단될 수 있도록 langCues를 미리 채운다.
-  void readLiveCues(platform, videoId, language).then((storedCues) => {
+  void readLiveCues(platform, videoId, language).then((rawStoredCues) => {
+    const storedCues = compactLiveCues(rawStoredCues, language);
     if (storedCues.length === 0) return;
     if ((session.cuesByLang.get(language) ?? []).length > 0) return; // 이미 채워진 경우 스킵
 
@@ -571,6 +575,9 @@ async function handleStartLiveStreaming(
     if (filteredCues.length === 0) return;
 
     session.cuesByLang.set(language, filteredCues);
+    if (filteredCues.length !== rawStoredCues.length) {
+      void writeLiveCues(platform, videoId, language, filteredCues);
+    }
     chrome.tabs.sendMessage(tabId, {
       type: "CUE_READY",
       videoId,
@@ -721,19 +728,22 @@ function handleSetLiveLang(tabId: number, language: string): void {
     // 언어 변경 전 요청의 stage2가 뒤늦게 도착하면 언어가 섞여 보일 수 있어 대기 중인 조각은 버린다.
     session.pending.clear();
     // 해당 언어 칠판으로 전환. 이전에 쌓인 cue가 있으면 즉시 화면에 복원.
-    const existingCues = session.cuesByLang.get(language) ?? [];
+    const existingCues = compactLiveCues(session.cuesByLang.get(language) ?? [], language);
+    if (existingCues.length > 0) session.cuesByLang.set(language, existingCues);
     const msg: BroadcastMessage = { type: "CUE_READY", videoId: session.videoId, cues: existingCues };
     chrome.tabs.sendMessage(tabId, msg).catch(() => {});
     if (existingCues.length === 0) {
-      void readLiveCues(session.platform, session.videoId, language).then((storedCues) => {
+      void readLiveCues(session.platform, session.videoId, language).then((rawStoredCues) => {
+        const storedCues = compactLiveCues(rawStoredCues, language);
         if (session.language !== language) return;
         if (storedCues.length > 0) return storedCues;
         return fetchStoredLiveCuesFromServer(session.platform, session.videoId, language, session.videoUrl);
       }).then((cues) => {
         if (!cues || cues.length === 0 || session.language !== language) return;
-        session.cuesByLang.set(language, cues);
+        const compactedCues = compactLiveCues(cues, language);
+        session.cuesByLang.set(language, compactedCues);
         const storedMsg: BroadcastMessage = { type: "CUE_READY", videoId: session.videoId, cues };
-        chrome.tabs.sendMessage(tabId, storedMsg).catch(() => {});
+        chrome.tabs.sendMessage(tabId, { ...storedMsg, cues: compactedCues }).catch(() => {});
       });
     }
     console.info(`[Kaptik BG Live] 라이브 언어 전환 → ${language} (tab ${tabId}, 기존 cue ${existingCues.length}개 복원)`);
@@ -824,22 +834,16 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
       annotations: (data.annotations as SubtitleCue["annotations"]) ?? [],
     };
 
-    // 현재 언어 칠판에 upsert. 서버 cached cue 재전송 시 같은 시각 cue가 중복되지 않게 한다.
+    // 현재 언어 칠판에 upsert. 같은 발화의 부분/반복 업데이트는 한 줄로 병합한다.
     const langCues = session.cuesByLang.get(cueLanguage) ?? [];
-    const existingIdx = langCues.findIndex((existing) => Math.abs(existing.start - cue.start) < 0.05);
-    if (existingIdx >= 0) {
-      langCues[existingIdx] = cue;
-    } else {
-      langCues.push(cue);
-    }
-    langCues.sort((a, b) => a.start - b.start);
-    session.cuesByLang.set(cueLanguage, langCues);
-    void writeLiveCues(session.platform, session.videoId, cueLanguage, langCues);
+    const nextLangCues = upsertLiveCue(langCues, cue, cueLanguage);
+    session.cuesByLang.set(cueLanguage, nextLangCues);
+    void writeLiveCues(session.platform, session.videoId, cueLanguage, nextLangCues);
 
-    console.info(`[Kaptik BG Live] CUE #${langCues.length} → tab ${tabId}: [ko] "${p.text_ko}" / [${cueLanguage}] "${translated}" (ts=${startMs}ms, rawTs=${ts}ms, cached=${p.cached})`);
+    console.info(`[Kaptik BG Live] CUE #${nextLangCues.length} → tab ${tabId}: [ko] "${p.text_ko}" / [${cueLanguage}] "${translated}" (ts=${startMs}ms, rawTs=${ts}ms, cached=${p.cached})`);
 
     if (cueLanguage !== session.language) return;
-    const msg: BroadcastMessage = { type: "CUE_READY", videoId: session.videoId, cues: [...langCues] };
+    const msg: BroadcastMessage = { type: "CUE_READY", videoId: session.videoId, cues: [...nextLangCues] };
     chrome.tabs.sendMessage(tabId, msg).catch(() => {});
   }
 }
@@ -1040,23 +1044,27 @@ chrome.runtime.onMessage.addListener(
               if (!req.platform || !req.videoId || !req.language) {
                 return { type: "LIVE_CUES", videoId: "", cues: [] };
               }
-              const localCues = await readLiveCues(req.platform, req.videoId, req.language);
+              const localCues = compactLiveCues(
+                await readLiveCues(req.platform, req.videoId, req.language),
+                req.language,
+              );
               if (localCues.length > 0) {
                 return { type: "LIVE_CUES", videoId: req.videoId, cues: localCues };
               }
+              const serverCues = await fetchStoredLiveCuesFromServer(
+                req.platform,
+                req.videoId,
+                req.language,
+                req.videoUrl,
+              );
               return {
                 type: "LIVE_CUES",
                 videoId: req.videoId,
-                cues: await fetchStoredLiveCuesFromServer(
-                  req.platform,
-                  req.videoId,
-                  req.language,
-                  req.videoUrl,
-                ),
+                cues: compactLiveCues(serverCues, req.language),
               };
             }
             if (req.platform && req.videoId && req.language) {
-              const langCues = session.cuesByLang.get(session.language) ?? [];
+              const langCues = compactLiveCues(session.cuesByLang.get(session.language) ?? [], session.language);
               if (langCues.length === 0) {
                 const serverCues = await fetchStoredLiveCuesFromServer(
                   req.platform,
@@ -1065,15 +1073,17 @@ chrome.runtime.onMessage.addListener(
                   req.videoUrl,
                 );
                 if (serverCues.length > 0) {
-                  session.cuesByLang.set(req.language, serverCues);
-                  return { type: "LIVE_CUES", videoId: session.videoId, cues: serverCues };
+                  const compactedServerCues = compactLiveCues(serverCues, req.language);
+                  session.cuesByLang.set(req.language, compactedServerCues);
+                  return { type: "LIVE_CUES", videoId: session.videoId, cues: compactedServerCues };
                 }
               }
+              session.cuesByLang.set(session.language, langCues);
             }
             return {
               type: "LIVE_CUES",
               videoId: session.videoId,
-              cues: [...(session.cuesByLang.get(session.language) ?? [])],
+              cues: [...compactLiveCues(session.cuesByLang.get(session.language) ?? [], session.language)],
             };
           }
           case "IS_LIVE_ACTIVE": {

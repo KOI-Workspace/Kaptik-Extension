@@ -26,6 +26,15 @@ describe("findActiveCueIndex — 영상 시간 기준 활성 자막", () => {
     expect(findActiveCueIndex(cues, 10)).toBe(0);
   });
 
+  it("자막 구간이 겹치면 더 늦게 시작한 최신 자막을 활성으로 본다", () => {
+    const overlappingCues = [
+      { start: 100, end: 106, text: { ko: "이전 자막" } },
+      { start: 104, end: 110, text: { ko: "현재 자막" } },
+    ] satisfies SubtitleCue[];
+
+    expect(findActiveCueIndex(overlappingCues, 105)).toBe(1);
+  });
+
   it("번역되지 않은 먼 미래 구간으로 점프하면 활성 자막이 없다", () => {
     expect(findActiveCueIndex(cues, 322)).toBe(-1);
   });
