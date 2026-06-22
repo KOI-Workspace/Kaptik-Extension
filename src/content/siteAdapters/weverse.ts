@@ -108,8 +108,9 @@ export const weverseAdapter: SiteAdapter = {
     const isLivePage = /\/live\//.test(location.href);
     const videos = Array.from(document.querySelectorAll("video"));
     return videos.some((v) => {
-      const isPlaying = !v.paused && !v.ended && !v.muted && v.readyState >= 2;
-      if (!isPlaying) return false;
+      // !v.paused 제거 — 광고 일시정지 시에도 광고 소스로 인식해야 패널이 안 뜸
+      const isCandidate = !v.ended && !v.muted && v.readyState >= 2;
+      if (!isCandidate) return false;
 
       const rect = v.getBoundingClientRect();
       const isVisible = rect.width > 80 && rect.height > 45;
