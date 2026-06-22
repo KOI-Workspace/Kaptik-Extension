@@ -25,6 +25,7 @@ import {
 } from "./generationStore";
 import { StreamingSession } from "@/api/wsClient";
 import { MockStreamingSession } from "@/api/mockStreamingSession";
+import { isDuplicateLiveStage1 } from "./liveCueDedup";
 
 /** 자막 트랙 메모리 캐시 (서비스 워커 생존 동안 유효) */
 const trackCache = new Map<string, SubtitleTrack>();
@@ -762,15 +763,19 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
     const ts = Number(data.ts);
     const text_ko = String(data.text_ko ?? "");
 
-    // 중복 재번역 방지: 이미 이 ts 근처(0.5초 이내)에 cue가 있으면 pending에 추가하지 않는다.
+    // 중복 재번역 방지: 같은 문장이 같은 ts 근처에 이미 있으면 pending에 추가하지 않는다.
     // - seek 후 서버가 같은 구간을 재처리할 때 (cached=false, 미세하게 다른 ts)
     // - 서버의 send_cached_subtitles + 라이브 브로드캐스트가 동시에 오는 중복 (cached 여부 무관)
+    // 시간만 가까운 다른 문장을 스킵하면 영상 초반 STT 조각이 사라지므로 텍스트까지 비교한다.
     // 두 경우 모두 Stage1을 스킵하면 Stage2도 pending miss로 자동 무시된다.
     const normalizedMs = normalizeLiveCueStartMs(session, ts);
     const existingLangCues = session.cuesByLang.get(session.language) ?? [];
-    const isDuplicate = existingLangCues.some(
-      (c) => Math.abs(c.start - normalizedMs / 1000) < 0.5,
-    );
+    const isDuplicate = isDuplicateLiveStage1({
+      existingCues: existingLangCues,
+      pendingCues: [...session.pending.values()],
+      startMs: normalizedMs,
+      textKo: text_ko,
+    });
     if (isDuplicate) {
       console.info(`[Kaptik BG Live] Stage1 중복 스킵 (ts=${normalizedMs}ms, 이미 번역됨)`);
       return;

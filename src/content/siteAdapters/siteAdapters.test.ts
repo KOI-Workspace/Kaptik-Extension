@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { youtubeAdapter } from "./youtube";
-import { weverseAdapter, isLikelyAdVideo } from "./weverse";
+import { weverseAdapter, isLikelyAdVideo, containsAdUiText } from "./weverse";
 import { instagramAdapter } from "./instagram";
 import { resolveAdapter } from "./index";
 
@@ -99,6 +99,16 @@ describe("Weverse isLikelyAdVideo — 광고 vs 다시보기 구분", () => {
 
   it("라이브 페이지가 아니어도 짧은 blob 프리롤은 광고", () => {
     expect(isLikelyAdVideo({ src: "blob:abc", duration: 30 })).toBe(true);
+  });
+});
+
+describe("Weverse containsAdUiText — 광고 UI 텍스트 감지", () => {
+  it("광고 건너뛰기는 광고 UI로 본다", () => {
+    expect(containsAdUiText("광고 건너뛰기")).toBe(true);
+  });
+
+  it("건너뛰기 단독 문구는 광고로 보지 않는다", () => {
+    expect(containsAdUiText("인트로 건너뛰기")).toBe(false);
   });
 });
 

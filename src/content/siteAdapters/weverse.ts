@@ -33,6 +33,12 @@ export function isLikelyAdVideo(params: {
   return true;
 }
 
+/** 보이는 텍스트에서 광고 UI 문구만 좁게 감지한다. */
+export function containsAdUiText(text: string): boolean {
+  if (/\b(skip ad|advertisement)\b/i.test(text)) return true;
+  return /광고\s*건너뛰기/.test(text);
+}
+
 /**
  * Weverse 어댑터.
  * Weverse는 SPA이며 라이브/미디어/모먼트 등 경로 구조가 다양하고,
@@ -106,11 +112,8 @@ export const weverseAdapter: SiteAdapter = {
   isAdPlaying() {
     const pageText = document.body?.innerText?.slice(0, 3000) ?? "";
 
-    // 영어 광고 UI 텍스트 (YouTube/범용)
-    if (/\b(skip ad|sponsored|advertisement)\b/i.test(pageText)) return true;
-    // 한국어 광고 UI 텍스트 — "광고 건너뛰기" 또는 "건너뛰기" 단독
-    // innerText 는 보이는 텍스트만 포함하므로 aria-label 전용 seek 버튼과 겹치지 않는다.
-    if (/광고\s*건너뛰기/.test(pageText) || /건너뛰기/.test(pageText)) return true;
+    // 광고 UI 텍스트. "건너뛰기" 단독은 일반 UI에도 쓰이므로 광고로 보지 않는다.
+    if (containsAdUiText(pageText)) return true;
 
     // Google IMA SDK 광고 클릭-through 링크:
     // SSAI 프리롤 재생 중 플레이어가 doubleclick 도메인으로 향하는 <a> 태그를 DOM에 추가한다.
