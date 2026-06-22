@@ -525,7 +525,8 @@ async function handleStartLiveStreaming(
 
   // content의 현재 재생 위치(초)를 0.5초마다 받아 offscreen에 전달 → 서버가 자막을 영상 위치에 정확히 꽂음.
   // 점프(seek)해도 다음 폴링에서 즉시 반영되므로 라이브 되감기/VOD 앞뒤 점프 모두 정렬됨.
-  let lastAdState: boolean | null = initialMuted ? true : null;
+  // null 대신 false로 초기화 — null일 때 첫 폴링에서 false가 오면 "광고 종료"가 오발되는 버그 방지
+  let lastAdState: boolean = initialMuted ? true : false;
   session.timeSyncTimer = setInterval(() => {
     chrome.tabs.sendMessage(tabId, { type: "GET_VIDEO_TIME" })
       .then((t: unknown) => {

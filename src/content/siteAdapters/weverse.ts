@@ -58,16 +58,11 @@ export const weverseAdapter: SiteAdapter = {
 
   /**
    * 광고 재생 여부.
-   * 위버스 본편 영상은 blob: URL(MSE)에서 재생되고, 광고는 일반 https URL(구글 광고 CDN 등)에서
-   * 재생된다(실제 로그 확인: 본편=blob:weverse.io, 광고=https://redirector.gvt1.com).
-   * 광고는 별도 video 요소를 쓰므로 페이지의 모든 video를 훑는다.
-   *
-   * 오판(본편/미리보기를 광고로 착각) 방지를 위해 아래를 모두 만족해야 광고로 본다:
-   * - src가 blob:(위버스 본편)이 아님
-   * - 실제 재생 중(일시정지/종료 아님)이고 미디어가 로딩됨
-   * - 음소거가 아님(소리 남) — 음소거된 자동재생 썸네일 등을 광고로 오판하지 않도록.
-   *   (음소거 광고는 탭 소리 자체가 무음이라 어차피 자막이 안 생기므로 제외해도 안전)
-   * 이 방식은 구글이 아닌 광고 업체여도 "blob 아닌 소리나는 영상"으로 잡아낸다.
+   * - 알려진 광고 CDN URL(구글 등)은 바로 감지
+   * - 위버스 라이브 본편은 blob: URL + duration=Infinity(라이브 스트림)
+   * - 위버스 광고(LG U+ 등 한국 브랜드)는 blob: URL이지만 duration이 유한값(광고 길이)
+   *   → 라이브 페이지에서 blob + 유한 duration = 광고로 판정
+   * - VOD/replay 페이지(유한 duration이 정상)는 라이브 페이지가 아니므로 오판하지 않음
    */
   isAdPlaying() {
     const pageText = document.body?.innerText?.slice(0, 3000) ?? "";
@@ -75,6 +70,7 @@ export const weverseAdapter: SiteAdapter = {
       return true;
     }
 
+    const isLivePage = /\/live\//.test(location.href);
     const videos = Array.from(document.querySelectorAll("video"));
     return videos.some((v) => {
       const src = v.currentSrc || "";
@@ -86,7 +82,10 @@ export const weverseAdapter: SiteAdapter = {
       if (!isVisible) return false;
 
       if (/doubleclick|googlesyndication|gvt1|googlevideo|adservice/i.test(src)) return true;
-      if (!src || src.startsWith("blob:")) return false; // 본편(weverse blob)
+      // 라이브 페이지에서 blob URL 영상의 duration이 유한하면 광고
+      // (라이브 본편은 duration=Infinity, 광고는 광고 길이만큼의 유한값을 가짐)
+      if (isLivePage && src.startsWith("blob:") && Number.isFinite(v.duration)) return true;
+      if (!src || src.startsWith("blob:")) return false;
       return true;
     });
   },
