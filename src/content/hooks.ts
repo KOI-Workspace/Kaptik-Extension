@@ -31,15 +31,15 @@ export function useSettings(): KaptikSettings {
 
 /**
  * 현재 영상 시간에 맞는 자막 큐 인덱스를 찾는다.
- * 큐 사이 공백에서는 직전 큐를 유지해 히스토리 맥락을 보여준다.
+ * 현재 시간이 자막 구간 밖이면 이전 자막을 유지하지 않고 비운다.
  */
 export function findActiveCueIndex(cues: SubtitleCue[], currentTime: number): number {
-  let found = -1;
   for (let i = 0; i < cues.length; i++) {
-    if (currentTime >= cues[i].start) found = i;
-    else break;
+    const cue = cues[i];
+    if (currentTime < cue.start) return -1;
+    if (currentTime >= cue.start && currentTime <= cue.end) return i;
   }
-  return found;
+  return -1;
 }
 
 /**
@@ -47,7 +47,7 @@ export function findActiveCueIndex(cues: SubtitleCue[], currentTime: number): nu
  * requestAnimationFrame으로 현재 시각을 읽되, 인덱스가 바뀔 때만 리렌더한다.
  * @param video 기준 video 요소
  * @param cues 시간순 정렬된 자막 큐
- * @returns 현재 큐 인덱스 (해당 없으면 마지막으로 지나간 큐, 시작 전이면 -1)
+ * @returns 현재 큐 인덱스 (해당 구간에 자막이 없으면 -1)
  */
 export function useActiveIndex(
   video: HTMLVideoElement,
@@ -61,7 +61,6 @@ export function useActiveIndex(
 
     const tick = () => {
       const found = findActiveCueIndex(cues, video.currentTime);
-      // 끝난 큐가 한참 지났어도 마지막 발화를 유지 (히스토리 맥락)
       if (found !== last) {
         last = found;
         setIndex(found);
