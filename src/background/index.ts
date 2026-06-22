@@ -473,6 +473,20 @@ async function handleStartLiveStreaming(
   };
   liveSessions.set(tabId, session);
 
+  // 세션 시작 시 저장된 cue 선로드.
+  // seek 후 재마운트 시에도 기존 번역이 즉시 보이게 하고,
+  // 서버의 cached=True 재전송이 Stage1에서 중복으로 판단될 수 있도록 langCues를 미리 채운다.
+  void readLiveCues(platform, videoId, language).then((storedCues) => {
+    if (storedCues.length === 0) return;
+    if ((session.cuesByLang.get(language) ?? []).length > 0) return; // 이미 채워진 경우 스킵
+    session.cuesByLang.set(language, storedCues);
+    chrome.tabs.sendMessage(tabId, {
+      type: "CUE_READY",
+      videoId,
+      cues: storedCues,
+    } satisfies BroadcastMessage).catch(() => {});
+  });
+
   // SW 재시작 후 offscreen 잔여 스트림이 탭을 점유할 수 있으므로
   // 캡처를 새로 시작하기 전에 기존 offscreen 문서를 확실히 정리한다.
   // (liveSessions는 SW 재시작 시 비지만 offscreen 문서/스트림은 살아있을 수 있음)
@@ -640,11 +654,26 @@ function handleLiveCueMsg(tabId: number, data: Record<string, unknown>): void {
   if (data.stage === 1) {
     const ts = Number(data.ts);
     const text_ko = String(data.text_ko ?? "");
+
+    // 중복 재번역 방지: 이미 이 ts 근처(0.5초 이내)에 cue가 있으면 pending에 추가하지 않는다.
+    // - seek 후 서버가 같은 구간을 재처리할 때 (cached=false, 미세하게 다른 ts)
+    // - 서버의 send_cached_subtitles + 라이브 브로드캐스트가 동시에 오는 중복 (cached 여부 무관)
+    // 두 경우 모두 Stage1을 스킵하면 Stage2도 pending miss로 자동 무시된다.
+    const normalizedMs = normalizeLiveCueStartMs(session, ts);
+    const existingLangCues = session.cuesByLang.get(session.language) ?? [];
+    const isDuplicate = existingLangCues.some(
+      (c) => Math.abs(c.start - normalizedMs / 1000) < 0.5,
+    );
+    if (isDuplicate) {
+      console.info(`[Kaptik BG Live] Stage1 중복 스킵 (ts=${normalizedMs}ms, 이미 번역됨)`);
+      return;
+    }
+
     session.pending.set(ts, {
       text_ko,
       speaker: String(data.speaker ?? ""),
       cached: Boolean(data.cached),
-      startMs: normalizeLiveCueStartMs(session, ts),
+      startMs: normalizedMs,
       language: session.language,
     });
     console.debug(`[Kaptik BG Live] STT stage1 ts=${ts}ms: "${text_ko}"`);
