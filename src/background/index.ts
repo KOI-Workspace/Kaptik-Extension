@@ -63,8 +63,65 @@ interface LiveSession {
 }
 const liveSessions = new Map<number, LiveSession>();
 
+interface PendingLiveStart {
+  timer: ReturnType<typeof setInterval>;
+  platform: Platform;
+  videoId: string;
+  captureStartVideoTime: number;
+  videoTitle?: string;
+  videoUrl?: string;
+}
+
+/** tabId → 광고 종료 후 시작할 라이브 캡처 예약 */
+const pendingLiveStarts = new Map<number, PendingLiveStart>();
+
 /** jobId → 진행 모니터링 WebSocket */
 const jobSockets = new Map<string, WebSocket>();
+
+function clearPendingLiveStart(tabId: number): void {
+  const pending = pendingLiveStarts.get(tabId);
+  if (!pending) return;
+  clearInterval(pending.timer);
+  pendingLiveStarts.delete(tabId);
+}
+
+function scheduleLiveStartAfterAd(
+  tabId: number,
+  params: Omit<PendingLiveStart, "timer">,
+): void {
+  clearPendingLiveStart(tabId);
+
+  let checking = false;
+  const timer = setInterval(() => {
+    if (checking) return;
+    checking = true;
+    chrome.tabs.sendMessage(tabId, { type: "GET_AD_STATE" })
+      .then(async (isAd: unknown) => {
+        if (isAd !== false) return;
+        clearPendingLiveStart(tabId);
+        let captureStartVideoTime = params.captureStartVideoTime;
+        try {
+          const t = await chrome.tabs.sendMessage(tabId, { type: "GET_VIDEO_TIME" });
+          if (typeof t === "number" && Number.isFinite(t)) captureStartVideoTime = t;
+        } catch { /* 현재 영상 시간 조회 실패 시 기존 값 사용 */ }
+        void handleStartLiveStreaming(
+          tabId,
+          params.platform,
+          params.videoId,
+          captureStartVideoTime,
+          params.videoTitle,
+          params.videoUrl,
+        );
+      })
+      .catch(() => { /* content script 미응답 시 다음 주기에 재시도 */ })
+      .finally(() => {
+        checking = false;
+      });
+  }, 1000);
+
+  pendingLiveStarts.set(tabId, { ...params, timer });
+  console.info(`[Kaptik BG Live] 광고 재생 중 → 광고 종료 후 캡처 시작 예약 tabId=${tabId} videoId=${params.videoId}`);
+}
 
 // ── 오프스크린 문서 관리 ─────────────────────────────────
 
@@ -450,12 +507,34 @@ async function handleStartLiveStreaming(
     chrome.tabs.sendMessage(tabId, { type: "LIVE_CAPTURE_STARTED", videoId } satisfies BroadcastMessage).catch(() => {});
     return { type: "STREAMING_STARTED" };
   }
+  const pending = pendingLiveStarts.get(tabId);
+  if (pending?.videoId === videoId) {
+    console.info(`[Kaptik BG Live] 광고 종료 대기 중 (dedup) tabId=${tabId} videoId=${videoId}`);
+    return { type: "STREAMING_STARTED" };
+  }
+  if (pending) clearPendingLiveStart(tabId);
   // 다른 영상의 기존 세션 정리
   if (prev) {
     if (prev.timeSyncTimer) clearInterval(prev.timeSyncTimer);
     chrome.runtime.sendMessage({ type: "STOP_CAPTURE" }).catch(() => {});
     liveSessions.delete(tabId);
   }
+
+  // 광고 중에는 서버 연결/탭 오디오 캡처를 시작하지 않는다.
+  // 광고가 끝난 뒤에만 기존 자막 복원과 새 캡처 흐름을 시작해야 광고 구간 로그와 중복 처리가 섞이지 않는다.
+  try {
+    const adState = await chrome.tabs.sendMessage(tabId, { type: "GET_AD_STATE" });
+    if (adState === true) {
+      scheduleLiveStartAfterAd(tabId, {
+        platform,
+        videoId,
+        captureStartVideoTime,
+        videoTitle,
+        videoUrl,
+      });
+      return { type: "STREAMING_STARTED" };
+    }
+  } catch { /* content script 미응답 시 기존 흐름대로 진행 */ }
 
   const sessionId = `live-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const session: LiveSession = {
@@ -585,6 +664,7 @@ async function handleStartLiveStreaming(
 }
 
 function handleStopLiveStreaming(tabId: number): void {
+  clearPendingLiveStart(tabId);
   const session = liveSessions.get(tabId);
   if (!session) return;
   if (session.timeSyncTimer) clearInterval(session.timeSyncTimer);
@@ -826,6 +906,7 @@ async function handleStartStreaming(
 
 // 탭이 닫히면 세션 정리
 chrome.tabs.onRemoved.addListener((tabId) => {
+  clearPendingLiveStart(tabId);
   const entry = streamingSessions.get(tabId);
   if (entry) {
     entry.session.disconnect();
