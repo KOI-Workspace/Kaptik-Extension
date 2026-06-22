@@ -121,6 +121,33 @@ export function useActiveIndex(
   return index;
 }
 
+/** 패널 강조용: 현재 영상 시간이 실제 cue 구간 안에 있을 때만 활성으로 본다. */
+export function useCurrentCueIndex(
+  video: HTMLVideoElement,
+  cues: SubtitleCue[],
+): number {
+  const [index, setIndex] = useState(-1);
+
+  useEffect(() => {
+    let rafId = 0;
+    let last = -2;
+
+    const tick = () => {
+      const found = findActiveCueIndex(cues, video.currentTime);
+      if (found !== last) {
+        last = found;
+        setIndex(found);
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [video, cues]);
+
+  return index;
+}
+
 /** 광고 재생 여부를 짧은 주기로 확인해 오버레이 표시를 제어한다. */
 export function useAdState(getIsAdPlaying?: () => boolean): boolean {
   const [isAd, setIsAd] = useState(false);

@@ -279,7 +279,7 @@ export function SidePanel({
           className="kaptik-latest"
           onClick={scrollToLatest}
         >
-          ↑ {t.latest}
+          ↓ {t.latest}
         </button>
       )}
     </aside>

@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import type { SubtitleTrack } from "@/types/subtitle";
-import { useActiveIndex, useAdState, useSettings } from "../hooks";
+import { useActiveIndex, useAdState, useCurrentCueIndex, useSettings } from "../hooks";
 import { CenterSubtitle } from "./CenterSubtitle";
 import { SidePanel } from "./SidePanel";
 
@@ -33,6 +33,7 @@ export function Display({
 }: DisplayProps) {
   const settings = useSettings();
   const activeIndex = useActiveIndex(video, track.cues, isLive);
+  const panelActiveIndex = useCurrentCueIndex(video, track.cues);
   const isAd = useAdState(getIsAdPlaying);
 
   if (!settings.enabled) return null;
@@ -61,7 +62,7 @@ export function Display({
         <SidePanel
           video={video}
           track={track}
-          activeIndex={activeIndex}
+          activeIndex={panelActiveIndex}
           settings={settings}
           variant="overlay"
           isLive={isLive}
@@ -77,7 +78,7 @@ export function Display({
           <SidePanel
             video={video}
             track={track}
-            activeIndex={activeIndex}
+            activeIndex={panelActiveIndex}
             settings={settings}
             variant="docked"
             isLive={isLive}

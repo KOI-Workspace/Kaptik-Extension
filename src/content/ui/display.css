@@ -237,7 +237,7 @@
   flex: 1 1 auto;
   overflow-y: auto;
   overflow-anchor: none;
-  padding: 10px 12px 18px;
+  padding: 10px 12px 58px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -491,7 +491,7 @@
 /* ── Latest 버튼 ── */
 .kaptik-latest {
   position: absolute;
-  top: 58px;
+  bottom: 14px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -513,7 +513,7 @@
 }
 
 .kaptik-latest:hover {
-  transform: translateX(-50%) translateY(-1px);
+  transform: translateX(-50%) translateY(1px);
 }
 
 @keyframes kaptik-rise {
