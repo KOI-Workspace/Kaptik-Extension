@@ -42,6 +42,29 @@ describe("upsertLiveCue", () => {
 
     expect(result).toHaveLength(2);
   });
+
+  it("짧은 감탄사가 긴 문장의 부분 포함이어도 8초 안이면 합치지 않는다 (오판 방지)", () => {
+    // "맞아"가 "맞아요, 진짜 좋았어요"에 포함되지만 길이 비율(2/11 < 50%)로 다른 발화
+    const result = upsertLiveCue(
+      [cue(100, "맞아", "Right.")],
+      cue(107, "맞아요, 진짜 좋았어요", "Yeah, it was really good."),
+      "en",
+    );
+
+    expect(result).toHaveLength(2);
+  });
+
+  it("같은 발화의 점진적 업데이트(절반 이상 겹침)는 합친다", () => {
+    // "안녕하"(3자) → "안녕하세요"(5자): 3/5 = 60% ≥ 50% → 병합
+    const result = upsertLiveCue(
+      [cue(100, "안녕하", "Hello")],
+      cue(101, "안녕하세요", "Hello there"),
+      "en",
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].text.ko).toBe("안녕하세요");
+  });
 });
 
 describe("compactLiveCues", () => {

@@ -16,9 +16,13 @@ function isRelatedText(a: string | undefined, b: string | undefined): boolean {
   const normalizedA = normalizeText(a);
   const normalizedB = normalizeText(b);
   if (!normalizedA || !normalizedB) return false;
-  return normalizedA === normalizedB ||
-    normalizedA.includes(normalizedB) ||
-    normalizedB.includes(normalizedA);
+  if (normalizedA === normalizedB) return true;
+  const [shorter, longer] = normalizedA.length <= normalizedB.length
+    ? [normalizedA, normalizedB]
+    : [normalizedB, normalizedA];
+  // 짧은 쪽이 긴 쪽의 절반 미만이면 같은 발화의 점진적 업데이트가 아닌 다른 발화로 판단
+  if (shorter.length < longer.length * 0.5) return false;
+  return longer.includes(shorter);
 }
 
 function chooseLongerText(a: string | undefined, b: string | undefined): string | undefined {

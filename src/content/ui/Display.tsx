@@ -33,7 +33,7 @@ export function Display({
 }: DisplayProps) {
   const settings = useSettings();
   const activeIndex = useActiveIndex(video, track.cues, isLive);
-  const panelActiveIndex = useCurrentCueIndex(video, track.cues);
+  const panelActiveIndex = useCurrentCueIndex(video, track.cues, isLive);
   const isAd = useAdState(getIsAdPlaying);
 
   if (!settings.enabled) return null;

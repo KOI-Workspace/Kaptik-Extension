@@ -301,8 +301,7 @@ async function handleGetStatus(
     }
     // 현재 언어 칠판에 cue가 하나라도 있으면 available (언어를 방금 바꿔서 아직 새 cue가 없더라도
     // 이전에 해당 언어로 쌓인 게 있으면 available로 처리 — 화면에 이미 복원돼 있음)
-    const currentLangCues = compactLiveCues(session.cuesByLang.get(session.language) ?? [], session.language);
-    if (currentLangCues.length > 0) session.cuesByLang.set(session.language, currentLangCues);
+    const currentLangCues = session.cuesByLang.get(session.language) ?? [];
     if (currentLangCues.length > 0) {
       return { type: "STATUS_OK", status: { state: "available" } };
     }
@@ -1064,7 +1063,7 @@ chrome.runtime.onMessage.addListener(
               };
             }
             if (req.platform && req.videoId && req.language) {
-              const langCues = compactLiveCues(session.cuesByLang.get(session.language) ?? [], session.language);
+              const langCues = session.cuesByLang.get(session.language) ?? [];
               if (langCues.length === 0) {
                 const serverCues = await fetchStoredLiveCuesFromServer(
                   req.platform,
@@ -1078,12 +1077,11 @@ chrome.runtime.onMessage.addListener(
                   return { type: "LIVE_CUES", videoId: session.videoId, cues: compactedServerCues };
                 }
               }
-              session.cuesByLang.set(session.language, langCues);
             }
             return {
               type: "LIVE_CUES",
               videoId: session.videoId,
-              cues: [...compactLiveCues(session.cuesByLang.get(session.language) ?? [], session.language)],
+              cues: [...(session.cuesByLang.get(session.language) ?? [])],
             };
           }
           case "IS_LIVE_ACTIVE": {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findActiveCueIndex, findDisplayCueIndex, isNearLiveEdge } from "./hooks";
+import { findActiveCueIndex, findDisplayCueIndex, findStickyPanelIndex, isNearLiveEdge } from "./hooks";
 import type { SubtitleCue } from "@/types/subtitle";
 
 const cues = [
@@ -69,6 +69,28 @@ describe("findDisplayCueIndex — 라이브 엣지 최신 cue 폴백", () => {
 
   it("cue가 없으면 -1", () => {
     expect(findDisplayCueIndex([], 10, true)).toBe(-1);
+  });
+});
+
+describe("findStickyPanelIndex — 라이브 패널 강조 (침묵 구간 sticky)", () => {
+  it("구간 안에 있으면 해당 인덱스를 반환한다", () => {
+    expect(findStickyPanelIndex(cues, 20)).toBe(1);
+    expect(findStickyPanelIndex(cues, 36)).toBe(2);
+  });
+
+  it("침묵 구간(구간 밖)에서도 이미 시작된 마지막 cue를 유지한다", () => {
+    // cue[1] end=22, 다음 cue[2] start=35 → 25초는 침묵 구간이지만 cue[1] 유지
+    expect(findStickyPanelIndex(cues, 25)).toBe(1);
+    // cue[2] end=37 이후에도 마지막 cue[2] 유지
+    expect(findStickyPanelIndex(cues, 40)).toBe(2);
+  });
+
+  it("첫 cue 시작 전에는 -1을 반환한다 (아직 발화 없음)", () => {
+    expect(findStickyPanelIndex(cues, 5)).toBe(-1);
+  });
+
+  it("cue가 없으면 -1", () => {
+    expect(findStickyPanelIndex([], 10)).toBe(-1);
   });
 });
 

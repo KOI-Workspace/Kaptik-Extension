@@ -31,7 +31,7 @@ export function isDuplicateLiveStage1(params: {
 
   const duplicatedExisting = params.existingCues.some((cue) =>
     Math.abs(cue.start - startSec) < DUPLICATE_WINDOW_SEC &&
-    isSameCueText(cue.text.ko, params.textKo)
+    isSameCueText(cue.text.ko ?? "", params.textKo)
   );
   if (duplicatedExisting) return true;
 
