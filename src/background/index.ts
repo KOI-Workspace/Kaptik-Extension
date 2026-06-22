@@ -614,6 +614,22 @@ async function handleStartLiveStreaming(
     }
   } catch { /* content script 미응답 무시 */ }
 
+  // acquireStreamId + ensureOffscreen 에 수 초가 걸리므로 캡처 시작 직전에 영상 위치를 다시 조회한다.
+  // 서버는 capture_start_sec를 기준으로 자막 ts를 계산하기 때문에 이 값이 stale하면
+  // 모든 자막이 지연 시간만큼 앞/뒤로 밀려 클릭 시 엉뚱한 위치로 이동하는 버그가 생긴다.
+  let actualCaptureStartSec = captureStartVideoTime;
+  if (!initialMuted) {
+    try {
+      const t = await chrome.tabs.sendMessage(tabId, { type: "GET_VIDEO_TIME" });
+      if (typeof t === "number" && Number.isFinite(t) && t > 0) {
+        actualCaptureStartSec = t;
+        session.captureStartVideoTime = t;
+        session.lastKnownVideoMs = Math.round(t * 1000);
+        console.info(`[Kaptik BG Live] captureStartSec 보정: ${captureStartVideoTime.toFixed(2)}s → ${t.toFixed(2)}s`);
+      }
+    } catch { /* content script 미응답 무시 */ }
+  }
+
   chrome.runtime.sendMessage({
     type: "CAPTURE_TAB",
     streamId,
@@ -623,7 +639,7 @@ async function handleStartLiveStreaming(
     targetLang: language,
     videoTitle,
     videoUrl,
-    captureStartSec: captureStartVideoTime,
+    captureStartSec: actualCaptureStartSec,
     initialMuted,
   }).catch(() => {});
 

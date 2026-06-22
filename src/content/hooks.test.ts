@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findActiveCueIndex } from "./hooks";
+import { findActiveCueIndex, findDisplayCueIndex } from "./hooks";
 import type { SubtitleCue } from "@/types/subtitle";
 
 const cues = [
@@ -28,5 +28,37 @@ describe("findActiveCueIndex — 영상 시간 기준 활성 자막", () => {
 
   it("번역되지 않은 먼 미래 구간으로 점프하면 활성 자막이 없다", () => {
     expect(findActiveCueIndex(cues, 322)).toBe(-1);
+  });
+});
+
+describe("findDisplayCueIndex — 라이브 엣지 최신 cue 폴백", () => {
+  it("구간 매칭되면 라이브여도 그대로 사용한다 (되감기·녹화 동기 유지)", () => {
+    expect(findDisplayCueIndex(cues, 20, true)).toBe(1);
+    expect(findDisplayCueIndex(cues, 36, true)).toBe(2);
+  });
+
+  it("라이브가 아니면 구간 밖에서 폴백하지 않는다 (VOD 무음 구간)", () => {
+    expect(findDisplayCueIndex(cues, 30, false)).toBe(-1);
+  });
+
+  it("라이브 엣지: 최신 cue가 영상 위치보다 미래여도 근처면 표시 (파이프라인 지연 보정)", () => {
+    // 영상 33초인데 최신 cue.start가 35초(2초 미래) → 구간 매칭 실패하지만 근처라 표시
+    expect(findActiveCueIndex(cues, 33)).toBe(-1);
+    expect(findDisplayCueIndex(cues, 33, true)).toBe(2);
+  });
+
+  it("라이브 엣지: 최신 cue 구간이 막 끝난 직후에도 잠깐 유지 (허용 오차 내)", () => {
+    // 영상 40초, 최신 cue end=37 → 구간 매칭 실패하지만 |35-40|=5초라 표시
+    expect(findActiveCueIndex(cues, 40)).toBe(-1);
+    expect(findDisplayCueIndex(cues, 40, true)).toBe(2);
+  });
+
+  it("되감기 후 무음 구간: 최신 cue가 한참 미래면 억지로 띄우지 않는다", () => {
+    // 영상 5초(첫 cue 전), 최신 cue.start=35 → |35-5|=30초로 허용 오차 초과 → -1
+    expect(findDisplayCueIndex(cues, 5, true)).toBe(-1);
+  });
+
+  it("cue가 없으면 -1", () => {
+    expect(findDisplayCueIndex([], 10, true)).toBe(-1);
   });
 });

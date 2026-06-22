@@ -42,16 +42,43 @@ export function findActiveCueIndex(cues: SubtitleCue[], currentTime: number): nu
   return -1;
 }
 
+/** 라이브 엣지 판정 허용 오차(초). 오디오 파이프라인 지연(~13초)을 커버한다. */
+const LIVE_EDGE_TOLERANCE_SEC = 20;
+
+/**
+ * 화면에 표시할 자막 큐 인덱스를 고른다.
+ * - 구간 매칭되면 그대로 사용 (되감기·녹화 영상 = 구간 동기가 정확해야 함)
+ * - 라이브에서 구간 매칭이 빠졌는데 최신 cue가 현재 위치 근처면 그 cue를 표시.
+ *   라이브 엣지에서는 오디오 처리 지연으로 cue.start가 영상 위치보다 앞뒤로 살짝
+ *   어긋나 구간 매칭에서 누락되기 때문 (살짝 늦더라도 최신 자막을 띄워준다).
+ *   되감기 후 무음 구간처럼 최신 cue가 한참 미래면 억지로 띄우지 않는다.
+ */
+export function findDisplayCueIndex(
+  cues: SubtitleCue[],
+  currentTime: number,
+  isLive: boolean,
+): number {
+  const active = findActiveCueIndex(cues, currentTime);
+  if (active !== -1 || !isLive || cues.length === 0) return active;
+
+  const last = cues[cues.length - 1];
+  return Math.abs(last.start - currentTime) <= LIVE_EDGE_TOLERANCE_SEC
+    ? cues.length - 1
+    : -1;
+}
+
 /**
  * video의 현재 재생 위치에 해당하는 자막 큐 인덱스를 추적하는 훅.
  * requestAnimationFrame으로 현재 시각을 읽되, 인덱스가 바뀔 때만 리렌더한다.
  * @param video 기준 video 요소
  * @param cues 시간순 정렬된 자막 큐
+ * @param isLive 라이브 여부 (라이브면 엣지에서 최신 cue 폴백 적용)
  * @returns 현재 큐 인덱스 (해당 구간에 자막이 없으면 -1)
  */
 export function useActiveIndex(
   video: HTMLVideoElement,
   cues: SubtitleCue[],
+  isLive = false,
 ): number {
   const [index, setIndex] = useState(-1);
 
@@ -60,7 +87,7 @@ export function useActiveIndex(
     let last = -2;
 
     const tick = () => {
-      const found = findActiveCueIndex(cues, video.currentTime);
+      const found = findDisplayCueIndex(cues, video.currentTime, isLive);
       if (found !== last) {
         last = found;
         setIndex(found);
@@ -70,7 +97,7 @@ export function useActiveIndex(
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [video, cues]);
+  }, [video, cues, isLive]);
 
   return index;
 }

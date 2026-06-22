@@ -32,7 +32,7 @@ export function Display({
   getIsAdPlaying,
 }: DisplayProps) {
   const settings = useSettings();
-  const activeIndex = useActiveIndex(video, track.cues);
+  const activeIndex = useActiveIndex(video, track.cues, isLive);
   const isAd = useAdState(getIsAdPlaying);
 
   if (!settings.enabled) return null;
