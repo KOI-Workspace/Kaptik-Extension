@@ -91,6 +91,8 @@ export interface Messages {
   liveNoneDesc: string;
   startLiveBtn: string;
   liveCapturingNote: string;
+  clearCuesBtn: string;
+  clearCuesConfirm: string;
 }
 
 const MESSAGES: Record<UiLanguage, Messages> = {
@@ -157,6 +159,8 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     liveNoneDesc: "Start capturing to see real-time translations.",
     startLiveBtn: "Start live subtitles",
     liveCapturingNote: "Subtitles will appear shortly. You can close this popup.",
+    clearCuesBtn: "Reset subtitles",
+    clearCuesConfirm: "Remove saved subtitles for this video? This is useful if ad audio was captured by mistake.",
   },
   ja: {
     appTagline: "K-POP字幕",
@@ -222,6 +226,8 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     liveNoneDesc: "キャプチャを開始してリアルタイム翻訳を見る。",
     startLiveBtn: "ライブ字幕を開始",
     liveCapturingNote: "まもなく字幕が表示されます。このポップアップは閉じて構いません。",
+    clearCuesBtn: "字幕をリセット",
+    clearCuesConfirm: "この動画の保存済み字幕を削除しますか？広告音声が誤ってキャプチャされた場合に使用します。",
   },
   "zh-CN": {
     appTagline: "K-pop字幕",
@@ -285,6 +291,8 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     liveNoneDesc: "开始捕获以查看实时翻译。",
     startLiveBtn: "开始实时字幕",
     liveCapturingNote: "字幕即将出现。您可以关闭此弹窗。",
+    clearCuesBtn: "重置字幕",
+    clearCuesConfirm: "删除此视频的已保存字幕？如果误捕获了广告音频，请使用此功能。",
   },
   id: {
     appTagline: "Subtitle K-pop",
@@ -350,6 +358,8 @@ const MESSAGES: Record<UiLanguage, Messages> = {
     liveNoneDesc: "Mulai menangkap untuk melihat terjemahan real-time.",
     startLiveBtn: "Mulai subtitle live",
     liveCapturingNote: "Subtitle akan segera muncul. Anda bisa menutup popup ini.",
+    clearCuesBtn: "Reset subtitle",
+    clearCuesConfirm: "Hapus subtitle tersimpan untuk video ini? Berguna jika audio iklan tidak sengaja terekam.",
   },
 };
 

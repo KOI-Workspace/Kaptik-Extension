@@ -22,6 +22,7 @@ import {
   areCuesReady,
   readLiveCues,
   writeLiveCues,
+  deleteLiveCues,
 } from "./generationStore";
 import { StreamingSession } from "@/api/wsClient";
 import { MockStreamingSession } from "@/api/mockStreamingSession";
@@ -558,11 +559,22 @@ async function handleStartLiveStreaming(
   void readLiveCues(platform, videoId, language).then((storedCues) => {
     if (storedCues.length === 0) return;
     if ((session.cuesByLang.get(language) ?? []).length > 0) return; // 이미 채워진 경우 스킵
-    session.cuesByLang.set(language, storedCues);
+
+    // captureStartVideoTime 이전 cue는 이전 세션에서 광고 구간에 캡처됐을 가능성이 있으므로 필터링.
+    // (예: HLS 내장 프리롤 광고를 미처 감지 못했을 때 0:00~0:13 광고 음성이 저장된 경우)
+    // 2초 여유를 둬 영상 시작 직전 rounding 오차를 허용한다.
+    // captureStartVideoTime = 0 이면 영상 맨 처음부터 시작한 세션이므로 필터 없이 전부 전달.
+    const minStart = session.captureStartVideoTime > 0
+      ? Math.max(0, session.captureStartVideoTime - 2)
+      : 0;
+    const filteredCues = minStart > 0 ? storedCues.filter((c) => c.start >= minStart) : storedCues;
+    if (filteredCues.length === 0) return;
+
+    session.cuesByLang.set(language, filteredCues);
     chrome.tabs.sendMessage(tabId, {
       type: "CUE_READY",
       videoId,
-      cues: storedCues,
+      cues: filteredCues,
     } satisfies BroadcastMessage).catch(() => {});
   });
 
@@ -1051,6 +1063,11 @@ chrome.runtime.onMessage.addListener(
           }
           case "SET_LIVE_LANG": {
             handleSetLiveLang(req.tabId, req.language);
+            return { type: "ERR", error: "" };
+          }
+          case "CLEAR_LIVE_CUES": {
+            await deleteLiveCues(req.platform, req.videoId);
+            console.info(`[Kaptik BG] 로컬 cue 삭제 완료: ${req.platform}/${req.videoId}`);
             return { type: "ERR", error: "" };
           }
           default:

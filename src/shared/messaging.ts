@@ -14,7 +14,9 @@ export type RequestMessage =
   // alwaysCapture(Weverse) 자막 UI를 Start 이후에만 마운트하기 위한 단일 진실 소스.
   | { type: "IS_LIVE_ACTIVE"; tabId?: number }
   // 라이브 캡처 중 자막 언어를 바꾼다 (offscreen WS에 set_lang 전송 → 이후 자막부터 새 언어).
-  | { type: "SET_LIVE_LANG"; tabId: number; language: string };
+  | { type: "SET_LIVE_LANG"; tabId: number; language: string }
+  // 특정 영상의 로컬 저장 cue를 모두 삭제한다 (이전 세션의 광고 구간 데이터 제거용).
+  | { type: "CLEAR_LIVE_CUES"; platform: Platform; videoId: string };
 
 /** background → 요청자 응답 메시지 */
 export type ResponseMessage =

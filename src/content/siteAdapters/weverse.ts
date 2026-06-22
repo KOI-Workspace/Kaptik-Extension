@@ -90,16 +90,34 @@ export const weverseAdapter: SiteAdapter = {
 
   /**
    * 광고 재생 여부.
-   * - 알려진 광고 CDN URL(구글 등)은 바로 감지
-   * - 위버스 라이브 본편은 blob: URL + duration=Infinity(라이브 스트림)
-   * - 위버스 광고(LG U+ 등 한국 브랜드)는 blob: URL이지만 duration이 짧은 유한값(광고 길이)
-   *   → blob + "짧은" 유한 duration = 광고로 판정
-   * - 라이브 다시보기(/live/ 유지하되 54분 등 긴 유한 duration)는 본편이므로 광고로 보지 않는다
-   * 판별 핵심은 순수 함수 isLikelyAdVideo로 분리(테스트 대상). 여기선 재생/가시성만 거른다.
+   * 위버스는 크게 두 종류의 광고가 있다.
+   *
+   * [A] 짧은 삽입 광고 (blob + 짧은 duration):
+   *   별도 video 요소 또는 같은 요소로 짧게 재생 → isLikelyAdVideo 가 감지.
+   *
+   * [B] HLS 스트림 내장 프리롤 (SSAI):
+   *   라이브 다시보기 스트림 맨 앞에 광고 구간이 통째로 붙어 있어
+   *   video.duration 이 전체 길이(수천 초)로 잡힘 → isLikelyAdVideo 로 감지 불가.
+   *   이 경우 플레이어가 광고 중에 보여 주는 UI 텍스트나 DOM 요소로 감지한다.
+   *
+   * 판별 핵심(A 유형)은 순수 함수 isLikelyAdVideo 로 분리(테스트 대상).
+   * 여기서는 재생·가시성 필터 및 B 유형 감지를 담당한다.
    */
   isAdPlaying() {
     const pageText = document.body?.innerText?.slice(0, 3000) ?? "";
-    if (/\b(skip ad|sponsored|advertisement)\b/i.test(pageText) || /광고\s*건너뛰기/.test(pageText)) {
+
+    // 영어 광고 UI 텍스트 (YouTube/범용)
+    if (/\b(skip ad|sponsored|advertisement)\b/i.test(pageText)) return true;
+    // 한국어 광고 UI 텍스트 — "광고 건너뛰기" 또는 "건너뛰기" 단독
+    // innerText 는 보이는 텍스트만 포함하므로 aria-label 전용 seek 버튼과 겹치지 않는다.
+    if (/광고\s*건너뛰기/.test(pageText) || /건너뛰기/.test(pageText)) return true;
+
+    // Google IMA SDK 광고 클릭-through 링크:
+    // SSAI 프리롤 재생 중 플레이어가 doubleclick 도메인으로 향하는 <a> 태그를 DOM에 추가한다.
+    // 광고가 끝나면 제거되므로 존재 자체가 광고 중임을 의미한다.
+    if (document.querySelector(
+      'a[href*="doubleclick.net"], a[href*="googleadservices.com"], a[href*="googlesyndication.com"]'
+    )) {
       return true;
     }
 

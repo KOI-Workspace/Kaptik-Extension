@@ -508,6 +508,29 @@ input[type="range"]::-webkit-slider-thumb {
   transform: scale(0.98);
 }
 
+/* 고스트 버튼: 배경 없이 텍스트만 */
+.btn-ghost {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color 140ms ease-out, background 140ms ease-out;
+  margin-top: 6px;
+}
+
+.btn-ghost:hover {
+  color: var(--color-text-secondary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.btn-ghost.btn-small {
+  font-size: 11px;
+  padding: 3px 6px;
+}
+
 /* ── 생성 단계 레이블 ── */
 .state-step {
   font-size: 12px;

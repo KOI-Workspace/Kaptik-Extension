@@ -143,6 +143,16 @@ export async function writeLiveCues(
   await chrome.storage.local.set({ [LIVE_CUES_KEY]: map });
 }
 
+/** 특정 영상의 모든 언어 cue를 로컬 스토리지에서 삭제한다. */
+export async function deleteLiveCues(platform: Platform, videoId: string): Promise<void> {
+  const map = await readLiveCuesMap();
+  const prefix = `${platform}:${videoId}:`;
+  for (const key of Object.keys(map)) {
+    if (key.startsWith(prefix)) delete map[key];
+  }
+  await chrome.storage.local.set({ [LIVE_CUES_KEY]: map });
+}
+
 /** 부작용 없이 완료 여부만 확인한다 (완료 전이 감지용). */
 export async function isLocalJobDone(platform: Platform, videoId: string): Promise<boolean> {
   const done = await readDone();
