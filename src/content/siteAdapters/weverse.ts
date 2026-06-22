@@ -4,9 +4,9 @@ import { findVideoBox, findDockColumn } from "./heuristics";
 /**
  * 위버스 삽입 광고로 볼 수 있는 영상의 최대 길이(초).
  * 이보다 길면 광고가 아니라 본편(라이브 다시보기 등)으로 판단한다.
- * (광고는 보통 15~60초, 본편 다시보기는 수십 분)
+ * (광고는 보통 15~60초. 3분 등 짧은 본편 영상을 광고로 오판하지 않도록 1분으로 둔다)
  */
-const AD_MAX_DURATION_SEC = 180;
+const AD_MAX_DURATION_SEC = 60;
 
 /**
  * 영상 속성만으로 광고 영상 여부를 판정하는 순수 로직 (DOM 미접근 → 단위 테스트 가능).

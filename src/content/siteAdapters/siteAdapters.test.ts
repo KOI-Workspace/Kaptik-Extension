@@ -84,9 +84,13 @@ describe("Weverse isLikelyAdVideo — 광고 vs 다시보기 구분", () => {
     expect(isLikelyAdVideo({ isLivePage: true, src: "blob:abc", duration: 30 })).toBe(true);
   });
 
-  it("경계값: 180초까지는 광고, 181초부터는 본편", () => {
-    expect(isLikelyAdVideo({ isLivePage: true, src: "blob:abc", duration: 180 })).toBe(true);
-    expect(isLikelyAdVideo({ isLivePage: true, src: "blob:abc", duration: 181 })).toBe(false);
+  it("경계값: 60초까지는 광고, 61초부터는 본편", () => {
+    expect(isLikelyAdVideo({ isLivePage: true, src: "blob:abc", duration: 60 })).toBe(true);
+    expect(isLikelyAdVideo({ isLivePage: true, src: "blob:abc", duration: 61 })).toBe(false);
+  });
+
+  it("3분짜리 짧은 본편 영상은 광고 아님", () => {
+    expect(isLikelyAdVideo({ isLivePage: true, src: "blob:abc", duration: 180 })).toBe(false);
   });
 
   it("광고 CDN(doubleclick) src는 길이와 무관하게 광고", () => {
