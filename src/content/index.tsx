@@ -102,10 +102,8 @@ class SubtitleController {
       if (prevLanguage !== s.language && this.mounted) {
         if (this.adapter.alwaysCapture) {
           // 라이브 캡처(위버스 등): 언어 변경 시 캡처 세션을 끊으면 안 된다(STOP 금지).
-          // 끊으면 광고 차단 타이머까지 멈추고 자동 재시작 트리거가 없어 자막이 영영 사라진다.
-          // 화면의 이전 언어 자막만 즉시 비우고, 백그라운드의 언어 전환(set_lang)이 보내주는
-          // 새 언어 cue로 다시 채운다.
-          this.mounted.handle.updateCues([]);
+          // 화면 비우기는 background의 LANG_SWITCHED 메시지가 도착할 때 원자적으로 처리한다.
+          // 여기서 updateCues([])를 즉시 호출하면 LANG_SWITCHED의 복원 cue와 race condition이 생긴다.
         } else {
           // YouTube VOD: 기존 자막 제거 후 evaluate → 새 언어 기준으로 재평가.
           // generating이면 대기, 완료되면 SUBTITLES_READY로 재마운트된다.
@@ -143,6 +141,17 @@ class SubtitleController {
           this.startStreamingFn(Math.floor(this.mounted.video.currentTime));
         } else {
           void this.evaluate();
+        }
+      } else if (message?.type === "LANG_SWITCHED") {
+        // 라이브 언어 전환 완료 신호. "화면 비우기 + 이전 언어 cue 복원"을 원자적으로 처리.
+        // onSettingsChanged의 updateCues([]) 대신 이 메시지가 화면 클리어 타이밍을 결정한다.
+        if (this.mounted && this.mounted.videoId === message.videoId && this.mounted.isLive) {
+          if (!this.isAdPlaying()) {
+            this.mounted.handle.updateCues(message.cues);
+          } else {
+            // 광고 중이면 복원하지 않고 비운 채로 대기 — 광고 종료 후 CUE_READY로 재표시
+            this.mounted.handle.updateCues([]);
+          }
         }
       } else if (message?.type === "CUE_READY") {
         // videoId 불일치 → 이전 영상 세션의 stale 메시지이므로 무시

@@ -330,6 +330,10 @@
   margin: -6px;
 }
 
+.kaptik-row.is-active .kaptik-row-time {
+  color: var(--brand);
+}
+
 .kaptik-row-main {
   flex: 1 1 auto;
   min-width: 0;

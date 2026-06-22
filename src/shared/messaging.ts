@@ -35,7 +35,10 @@ export type BroadcastMessage =
   | { type: "SPEAKER_IDENTIFIED"; speakerId: string; name: string; member: Member }
   // alwaysCapture 캡처 세션 시작/종료 알림 → content가 자막 UI를 즉시 마운트/언마운트
   | { type: "LIVE_CAPTURE_STARTED"; videoId: string }
-  | { type: "LIVE_CAPTURE_STOPPED"; videoId: string };
+  | { type: "LIVE_CAPTURE_STOPPED"; videoId: string }
+  // 라이브 언어 전환 완료 신호. cues = 새 언어의 기존 자막(없으면 빈 배열).
+  // content는 이 메시지를 받아 화면 비우기 + 복원을 원자적으로 처리한다.
+  | { type: "LANG_SWITCHED"; videoId: string; cues: SubtitleCue[] };
 
 /** sendMessage 를 Promise로 감싸는 헬퍼 */
 function send<R extends ResponseMessage>(

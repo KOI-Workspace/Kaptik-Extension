@@ -740,8 +740,11 @@ function handleSetLiveLang(tabId: number, language: string): void {
     // 해당 언어 칠판으로 전환. 이전에 쌓인 cue가 있으면 즉시 화면에 복원.
     const existingCues = compactLiveCues(session.cuesByLang.get(language) ?? [], language);
     if (existingCues.length > 0) session.cuesByLang.set(language, existingCues);
-    const msg: BroadcastMessage = { type: "CUE_READY", videoId: session.videoId, cues: existingCues };
-    chrome.tabs.sendMessage(tabId, msg).catch(() => {});
+    // LANG_SWITCHED: content가 "화면 비우기 + 복원"을 원자적으로 처리하는 단일 신호.
+    // existingCues가 있으면 즉시 복원, 없으면 빈 배열로 화면 클리어.
+    // CUE_READY와 달리 content의 onSettingsChanged와 race condition이 없다.
+    const switchMsg: BroadcastMessage = { type: "LANG_SWITCHED", videoId: session.videoId, cues: existingCues };
+    chrome.tabs.sendMessage(tabId, switchMsg).catch(() => {});
     if (existingCues.length === 0) {
       void readLiveCues(session.platform, session.videoId, language).then((rawStoredCues) => {
         const storedCues = compactLiveCues(rawStoredCues, language);
@@ -752,8 +755,9 @@ function handleSetLiveLang(tabId: number, language: string): void {
         if (!cues || cues.length === 0 || session.language !== language) return;
         const compactedCues = compactLiveCues(cues, language);
         session.cuesByLang.set(language, compactedCues);
-        const storedMsg: BroadcastMessage = { type: "CUE_READY", videoId: session.videoId, cues };
-        chrome.tabs.sendMessage(tabId, { ...storedMsg, cues: compactedCues }).catch(() => {});
+        // 화면은 이미 LANG_SWITCHED로 클리어됐으므로 CUE_READY로 채운다
+        const storedMsg: BroadcastMessage = { type: "CUE_READY", videoId: session.videoId, cues: compactedCues };
+        chrome.tabs.sendMessage(tabId, storedMsg).catch(() => {});
       });
     }
     console.info(`[Kaptik BG Live] 라이브 언어 전환 → ${language} (tab ${tabId}, 기존 cue ${existingCues.length}개 복원)`);
