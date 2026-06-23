@@ -73,7 +73,7 @@ export function SidePanel({
     if (atBottom && listRef.current) {
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
-  }, [activeIndex, atBottom, isLive]);
+  }, [activeIndex, atBottom, isLive, track.cues.length]);
 
   // VOD: activeIndex가 아래쪽을 벗어나면 활성 cue를 패널 하단 근처에 맞춘다.
   // 보라색 표시가 아래로 내려오다가 하단에 닿은 뒤에는 목록이 한 줄씩 따라 내려가는 UX다.
