@@ -80,7 +80,7 @@ export const DEFAULT_SETTINGS: KaptikSettings = {
 };
 
 /** 결제/업그레이드 페이지 URL (백엔드 연동 전 placeholder) */
-export const PRICING_URL = "https://kaptik.site/pricing";
+export const PRICING_URL = "https://www.kaptik.site/pricing";
 
 /**
  * 저장된 설정을 읽어 기본값과 병합해 반환한다.

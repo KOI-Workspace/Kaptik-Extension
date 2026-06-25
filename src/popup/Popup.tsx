@@ -239,7 +239,7 @@ export function Popup() {
   };
 
   const handleLogin = () => {
-    void chrome.tabs.create({ url: "https://kaptik.site/login" });
+    void chrome.tabs.create({ url: "https://www.kaptik.site/login" });
   };
 
   const handleLogout = () => {

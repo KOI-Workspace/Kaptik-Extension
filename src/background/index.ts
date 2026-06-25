@@ -1183,7 +1183,7 @@ chrome.notifications?.onClicked.addListener((id) => {
 });
 
 // kaptik.site 로그인 쿠키 감시 → 확장 auth 상태 자동 동기화
-const KAPTIK_COOKIE_URL = "https://kaptik.site";
+const KAPTIK_COOKIE_URL = "https://www.kaptik.site";
 const KAPTIK_COOKIE_NAME = "kaptik_token";
 
 async function syncAuthFromCookie(token: string | null) {
@@ -1200,6 +1200,6 @@ void chrome.cookies
   .then((cookie) => syncAuthFromCookie(cookie?.value ?? null));
 
 chrome.cookies.onChanged.addListener(({ cookie, removed }) => {
-  if (cookie.domain !== "kaptik.site" || cookie.name !== KAPTIK_COOKIE_NAME) return;
+  if (cookie.domain !== "www.kaptik.site" || cookie.name !== KAPTIK_COOKIE_NAME) return;
   void syncAuthFromCookie(removed ? null : cookie.value);
 });
