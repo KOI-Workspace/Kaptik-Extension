@@ -114,7 +114,18 @@ export function Popup() {
       if (active) setTarget(target);
     })();
 
-    return () => { active = false; };
+    const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
+      if (changes["kaptik:settings"] && active) {
+        const nextSettings = { ...DEFAULT_SETTINGS, ...changes["kaptik:settings"].newValue };
+        setSettings(nextSettings);
+      }
+    };
+    chrome.storage.local.onChanged.addListener(handleStorageChange);
+
+    return () => { 
+      active = false; 
+      chrome.storage.local.onChanged.removeListener(handleStorageChange);
+    };
   }, []);
 
   // target이 확인되면 상태 폴링 시작
