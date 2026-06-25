@@ -652,7 +652,7 @@ export function AvailableView({
 
   return (
     <>
-      {!isPaid(getEffectivePlan(settings)) && <UpgradeBanner t={t} onUpgrade={onUpgrade} />}
+      {getEffectivePlan(settings) !== "pro" && <UpgradeBanner t={t} onUpgrade={onUpgrade} />}
 
       <div className="card">
         <div className="row">

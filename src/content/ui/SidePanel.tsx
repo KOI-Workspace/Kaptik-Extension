@@ -164,7 +164,7 @@ export function SidePanel({
             <div className="kaptik-lock-title">{t.cannotCreateTitle}</div>
             <div className="kaptik-lock-desc">{t.cannotCreateNotKoreanDesc}</div>
           </div>
-        ) : !isPaid(getEffectivePlan(settings)) ? (
+        ) : getEffectivePlan(settings) !== "pro" ? (
           <div className="kaptik-lock">
             <div className="kaptik-lock-icon">🔒</div>
             <div className="kaptik-lock-title">{t.panelLockTitle}</div>

@@ -54,7 +54,10 @@ export function isPaid(plan: PlanTier): boolean {
 /** devMode / authToken / plan 순서로 실제 등급을 결정한다 */
 export function getEffectivePlan(settings: KaptikSettings): PlanTier {
   if (settings.devMode) return "pro";
-  if (settings.authToken) return decodeTokenPlan(settings.authToken);
+  if (settings.authToken) {
+    const tokenPlan = decodeTokenPlan(settings.authToken);
+    if (tokenPlan !== "free") return tokenPlan;
+  }
   return settings.plan;
 }
 

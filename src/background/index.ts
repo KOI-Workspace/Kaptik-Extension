@@ -1192,14 +1192,30 @@ chrome.notifications?.onClicked.addListener((id) => {
   chrome.notifications.clear(id);
 });
 
+import { fetchUserProfile } from "@/api/client";
+
 // kaptik.site 로그인 쿠키 감시 → 확장 auth 상태 자동 동기화
 const KAPTIK_COOKIE_NAME = "kaptik_token";
 
 async function syncAuthFromCookie(token: string | null) {
   if (token) {
-    await updateSettings({ authToken: token, loggedIn: true });
+    const settings = await getSettings();
+    let plan = settings.plan;
+    let subtitleLang = settings.language;
+    try {
+      const profile = await fetchUserProfile(settings.serverUrl, token);
+      if (profile.plan === "basic" || profile.plan === "pro") {
+        plan = profile.plan;
+      }
+      if (profile.subtitle_lang) {
+        subtitleLang = profile.subtitle_lang as any;
+      }
+    } catch (e) {
+      console.error("[Kaptik BG] 프로필 동기화 실패:", e);
+    }
+    await updateSettings({ authToken: token, loggedIn: true, plan, language: subtitleLang });
   } else {
-    await updateSettings({ authToken: "", loggedIn: false });
+    await updateSettings({ authToken: "", loggedIn: false, plan: "free" });
   }
 }
 
