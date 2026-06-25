@@ -1,7 +1,7 @@
 {
   "name": "kaptik-extension",
   "version": "0.1.0",
-  "description": "Kaptik – 글로벌 K-pop 팬을 위한 라이브/영상 자막 확장 프로그램 (YouTube · Weverse)",
+  "description": "Enjoy K-pop videos with the best quality subtitles.",
   "private": true,
   "type": "module",
   "scripts": {

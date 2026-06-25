@@ -11,7 +11,7 @@ export default function getManifest(mode: string) {
   const isDev = mode !== "production";
   return defineManifest({
     manifest_version: 3,
-    name: "Kaptik – K-pop 라이브 자막",
+    name: "Kaptik - Understand every moment for your bias",
     version: pkg.version,
     description: pkg.description,
     icons: {
