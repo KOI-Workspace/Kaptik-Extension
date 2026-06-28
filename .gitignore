@@ -1,6 +1,10 @@
 node_modules
 dist
+dist.zip
 *.local
+.claude/
 .DS_Store
 .vite
-.env.production
+.env*
+!.env.example
+vite.config.ts.timestamp-*.mjs
