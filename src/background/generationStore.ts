@@ -18,6 +18,8 @@ const DONE_KEY = "kaptik:available";
 const CUES_KEY = "kaptik:cues_ready";
 /** videoId 키 → 생성 시 사용된 언어 코드 */
 const GEN_LANG_KEY = "kaptik:gen_lang";
+/** 월간 한도 초과(quota_exceeded)가 발생한 platform:videoId 목록 */
+const MONTHLY_LIMIT_KEY = "kaptik:monthly_limit";
 const LIVE_CUES_KEY = "kaptik:live_cues";
 const MAX_LIVE_CUES_PER_LANG = 1000;
 
@@ -74,15 +76,16 @@ async function readGenLang(): Promise<Record<string, string>> {
 
 /**
  * 모든 주요 저장소 데이터를 한 번에 읽는다. (성능 최적화)
- * @returns 배열 순서: [jobs, done, cuesReady, genLang]
+ * @returns 배열 순서: [jobs, done, cuesReady, genLang, monthlyLimit]
  */
-async function readAll(): Promise<[Record<string, Job>, string[], string[], Record<string, string>]> {
-  const data = await chrome.storage.local.get([JOBS_KEY, DONE_KEY, CUES_KEY, GEN_LANG_KEY]);
+async function readAll(): Promise<[Record<string, Job>, string[], string[], Record<string, string>, string[]]> {
+  const data = await chrome.storage.local.get([JOBS_KEY, DONE_KEY, CUES_KEY, GEN_LANG_KEY, MONTHLY_LIMIT_KEY]);
   return [
     (data[JOBS_KEY] ?? {}) as Record<string, Job>,
     (data[DONE_KEY] ?? []) as string[],
     (data[CUES_KEY] ?? []) as string[],
     (data[GEN_LANG_KEY] ?? {}) as Record<string, string>,
+    (data[MONTHLY_LIMIT_KEY] ?? []) as string[],
   ];
 }
 
@@ -94,12 +97,14 @@ async function writeAll(
   done: string[],
   cues: string[],
   genLang: Record<string, string>,
+  monthlyLimit: string[],
 ): Promise<void> {
   await chrome.storage.local.set({
     [JOBS_KEY]: jobs,
     [DONE_KEY]: done,
     [CUES_KEY]: cues,
     [GEN_LANG_KEY]: genLang,
+    [MONTHLY_LIMIT_KEY]: monthlyLimit,
   });
 }
 
@@ -174,7 +179,11 @@ export async function getLocalStatus(
 ): Promise<SubtitleStatus> {
   const key = keyOf(platform, videoId);
   // 모든 저장소 데이터를 한 번에 읽는다 (배치 최적화)
-  const [jobs, done, cuesReady, genLang] = await readAll();
+  const [jobs, done, cuesReady, genLang, monthlyLimit] = await readAll();
+
+  if (monthlyLimit.includes(key)) {
+    return { state: "monthly_limit" };
+  }
 
   if (done.includes(key)) {
     // 생성 시 사용된 언어와 현재 요청 언어가 다르면 아직 해당 언어 자막 없음.
@@ -245,14 +254,31 @@ export async function startLocalJob(
   durationMs: number = DEFAULT_DURATION_MS,
 ): Promise<number> {
   const key = keyOf(platform, videoId);
-  const [jobs, genLang] = await Promise.all([readJobs(), readGenLang()]);
+  const [jobs, genLang, mlData] = await Promise.all([
+    readJobs(),
+    readGenLang(),
+    chrome.storage.local.get(MONTHLY_LIMIT_KEY),
+  ]);
   jobs[key] = { platform, videoId, startedAt: Date.now(), durationMs, language };
   genLang[key] = language;
+  // 서버가 job을 수락했으므로 이 영상의 monthly_limit 플래그를 해제한다
+  const monthlyLimit = ((mlData[MONTHLY_LIMIT_KEY] ?? []) as string[]).filter((k) => k !== key);
   await Promise.all([
     writeJobs(jobs),
-    chrome.storage.local.set({ [GEN_LANG_KEY]: genLang }),
+    chrome.storage.local.set({ [GEN_LANG_KEY]: genLang, [MONTHLY_LIMIT_KEY]: monthlyLimit }),
   ]);
   return Math.ceil(durationMs / 1000);
+}
+
+/** 월간 한도 초과(quota_exceeded) 상태를 storage에 기록한다. 이후 poll이 monthly_limit을 반환한다. */
+export async function setMonthlyLimit(platform: Platform, videoId: string): Promise<void> {
+  const key = keyOf(platform, videoId);
+  const r = await chrome.storage.local.get(MONTHLY_LIMIT_KEY);
+  const list = (r[MONTHLY_LIMIT_KEY] ?? []) as string[];
+  if (!list.includes(key)) {
+    list.push(key);
+    await chrome.storage.local.set({ [MONTHLY_LIMIT_KEY]: list });
+  }
 }
 
 /**
@@ -294,7 +320,7 @@ export async function completeLocalJob(
 export async function removeAvailable(platform: Platform, videoId: string): Promise<void> {
   const key = keyOf(platform, videoId);
   // 모든 저장소 데이터를 한 번에 읽는다 (배치 최적화)
-  const [jobs, done, cues, genLang] = await readAll();
+  const [jobs, done, cues, genLang, monthlyLimit] = await readAll();
   delete jobs[key];
   delete genLang[key];
   // 배치 쓰기로 한 번의 storage 작업으로 처리
@@ -303,5 +329,6 @@ export async function removeAvailable(platform: Platform, videoId: string): Prom
     done.filter((k) => k !== key),
     cues.filter((k) => k !== key),
     genLang,
+    monthlyLimit, // monthly_limit 항목은 그대로 유지
   );
 }

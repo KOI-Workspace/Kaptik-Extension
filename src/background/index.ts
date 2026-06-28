@@ -23,6 +23,7 @@ import {
   areCuesReady,
   readLiveCues,
   writeLiveCues,
+  setMonthlyLimit,
 } from "./generationStore";
 import { StreamingSession } from "@/api/wsClient";
 import { MockStreamingSession } from "@/api/mockStreamingSession";
@@ -384,6 +385,8 @@ async function handleStartGeneration(
   } catch (e) {
     console.error("[Kaptik BG] Job 생성 실패:", e);
     if (e instanceof ApiError && e.status === 403) {
+      if (e.detail === "quota_exceeded") return { type: "ERR_MONTHLY_LIMIT" };
+      // plan_expired / plan_required / 기타 403은 플랜 업그레이드 유도
       return { type: "ERR_PLAN_REQUIRED" };
     }
     return { type: "ERR", error: e instanceof Error ? e.message : "Job 생성 실패" };
@@ -428,11 +431,17 @@ function openJobSocket(
         console.info(`[Kaptik BG YT] Job ${jobId} 완료 total_cues=${String(msg.total_cues ?? 0)}`);
         finish();
       } else if (msg.type === "error") {
-        console.error(`[Kaptik BG YT] Job ${jobId} 오류:`, String(msg.message ?? ""));
-                ws.close();
+        const code = String(msg.code ?? "");
+        console.error(`[Kaptik BG YT] Job ${jobId} 오류 code=${code}:`, String(msg.message ?? ""));
+        ws.close();
         jobSockets.delete(jobId);
-        // 로컬 상태를 초기화해 팝업이 generating → none으로 전이되도록 함
-        void removeAvailable(platform, videoId);
+        if (code === "quota_exceeded") {
+          // 월간 한도 초과 — 팝업 poll이 monthly_limit을 반환하도록 storage에 기록
+          void setMonthlyLimit(platform, videoId);
+        } else {
+          // 그 외 오류 — 로컬 상태를 초기화해 팝업이 generating → none으로 전이되도록 함
+          void removeAvailable(platform, videoId);
+        }
       }
     } catch { /* malformed JSON */ }
   };
@@ -958,15 +967,17 @@ async function handleStartStreaming(
         language,
         onCueReady,
         (err, code) => {
-          console.error(`[Kaptik BG YT] 스트리밍 오류 tabId=${tabId}:`, err);
+          console.error(`[Kaptik BG YT] 스트리밍 오류 tabId=${tabId} code=${code ?? ""}:`, err);
           if (code === "plan_required") {
-            // 서버가 plan 부족을 알림 — 로컬 plan을 basic으로 갱신
             void updateSettings({ plan: "basic" });
+          }
+          if (code === "quota_exceeded") {
+            // 월간 한도 초과 — 팝업 poll이 monthly_limit을 반환하도록 storage에 기록
+            void setMonthlyLimit("youtube", videoId);
           }
           const msg: BroadcastMessage = { type: "STREAMING_ERROR", message: err };
           chrome.tabs.sendMessage(tabId, msg).catch(() => {});
           if (code === "not_found") {
-            // cues가 이미 로드된 경우(재생/탐색 후 재연결 시도)에는 available 상태를 보존한다
             void areCuesReady("youtube", videoId).then((loaded) => {
               if (!loaded) void removeAvailable("youtube", videoId);
             });

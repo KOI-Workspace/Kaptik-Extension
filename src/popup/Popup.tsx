@@ -182,6 +182,8 @@ export function Popup() {
       if (eta === "plan_required") {
         // 서버가 plan 부족을 알림 — 로컬 plan을 basic으로 업데이트하고 잠금 표시
         patch({ plan: "basic" as any });
+      } else if (eta === "monthly_limit") {
+        setStatus({ state: "monthly_limit" });
       } else if (eta === null) {
         setStatus({ state: "failed" });
       } else {
@@ -244,6 +246,8 @@ export function Popup() {
     void startGeneration(target.platform, target.videoId, false, newLang).then((eta) => {
       if (eta === "plan_required") {
         patch({ plan: "basic" as any });
+      } else if (eta === "monthly_limit") {
+        setStatus({ state: "monthly_limit" });
       } else if (eta === null) {
         setStatus({ state: "failed" });
       } else {
@@ -348,6 +352,10 @@ export function Popup() {
 
       {target && !locked && status?.state === "generating" && (
         <GeneratingView t={t} status={status} liveCapturing={target.alwaysCapture} />
+      )}
+
+      {target && !locked && status?.state === "monthly_limit" && (
+        <MonthlyLimitView />
       )}
 
       {target && !locked && status?.state === "failed" && (
@@ -606,6 +614,30 @@ export function LockedView({ t, onUpgrade }: { t: Messages; onUpgrade: () => voi
   );
 }
 
+export function MonthlyLimitView() {
+  return (
+    <div className="state-block">
+      <div className="state-emoji">⏱️</div>
+      <div className="state-title">Monthly Limit Reached</div>
+      <div className="state-desc">
+        You've used all 24 hours of subtitles for this month.
+      </div>
+      <div className="state-desc">
+        Contact us on Discord<br />
+        Channel:{" "}
+        <a
+          href="https://discord.com/channels/1519656653342113802/1519707999873138919"
+          target="_blank"
+          rel="noreferrer"
+          className="state-link"
+        >
+          ❓Question
+        </a>
+      </div>
+    </div>
+  );
+}
+
 /** 미결제(무료) 사용자에게 보여줄 업그레이드 배너 */
 function UpgradeBanner({ t, onUpgrade }: { t: Messages; onUpgrade: () => void }) {
   return (
@@ -815,6 +847,7 @@ function DevSettingsSection({
                   "kaptik:jobs",
                   "kaptik:cues_ready",
                   "kaptik:gen_lang",
+                  "kaptik:monthly_limit",
                   "kaptik:live_cues",
                 ]);
               }}
