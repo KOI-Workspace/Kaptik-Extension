@@ -36,6 +36,8 @@ export interface KaptikSettings {
   plan: PlanTier;
   /** 결제 계정 표시 이름 (등급 배지 옆 프로필에 사용, 목업) */
   profileName: string;
+  /** 구글 프로필 사진 URL — 빈 문자열이면 이름 첫 글자로 폴백 */
+  profileImageUrl: string;
   /** 스트리밍 백엔드 WebSocket 서버 URL */
   serverUrl: string;
   /** 백엔드 JWT 인증 토큰 — 빈 문자열이면 미로그인 */
@@ -76,6 +78,7 @@ export const DEFAULT_SETTINGS: KaptikSettings = {
   notifyOnReady: true,
   plan: "free",
   profileName: "",
+  profileImageUrl: "",
   serverUrl: import.meta.env.VITE_SERVER_URL ?? "ws://localhost:8000",
   authToken: "",
   devMode: false,

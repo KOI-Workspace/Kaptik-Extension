@@ -32,6 +32,7 @@ export interface UserProfile {
   email: string;
   plan: string;
   subtitle_lang: string;
+  picture: string;
 }
 
 /** 백엔드 Job API 응답 타입 */

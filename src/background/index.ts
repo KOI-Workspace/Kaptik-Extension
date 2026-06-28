@@ -1213,6 +1213,7 @@ async function syncAuthFromCookie(token: string | null) {
     const settings = await getSettings();
     let plan = settings.plan;
     let subtitleLang = settings.language;
+    let profileImageUrl = settings.profileImageUrl;
     try {
       const profile = await fetchUserProfile(settings.serverUrl, token);
       if (profile.plan === "basic" || profile.plan === "pro") {
@@ -1221,12 +1222,15 @@ async function syncAuthFromCookie(token: string | null) {
       if (profile.subtitle_lang) {
         subtitleLang = profile.subtitle_lang as any;
       }
+      if (profile.picture) {
+        profileImageUrl = profile.picture;
+      }
     } catch (e) {
       console.error("[Kaptik BG] 프로필 동기화 실패:", e);
     }
-    await updateSettings({ authToken: token, loggedIn: true, plan, language: subtitleLang });
+    await updateSettings({ authToken: token, loggedIn: true, plan, language: subtitleLang, profileImageUrl });
   } else {
-    await updateSettings({ authToken: "", loggedIn: false, plan: "free" });
+    await updateSettings({ authToken: "", loggedIn: false, plan: "free", profileImageUrl: "" });
   }
 }
 

@@ -65,6 +65,7 @@ export function Popup() {
   // 팝업이 열린 상태에서 generating → available 전환이 감지되면 설정창 대신 완료 안내 뷰를 표시
   const prevStatusStateRef = useRef<SubtitleStatus["state"]>("none");
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [avatarImgFailed, setAvatarImgFailed] = useState(false);
   // alwaysCapture 플랫폼(Weverse)에서 Start 버튼 클릭 시 tabId 전달을 위해 저장
   const tabInfoRef = useRef<{ id: number; url: string; title: string } | null>(null);
   // 2초 폴링 interval ID (cleanup용)
@@ -75,6 +76,8 @@ export function Popup() {
 
   // settings.language가 UI 언어와 자막 생성 언어를 함께 제어
   const t = getMessages(settings.language);
+
+  useEffect(() => { setAvatarImgFailed(false); }, [settings.profileImageUrl]);
 
   useEffect(() => {
     let active = true;
@@ -291,40 +294,42 @@ export function Popup() {
           <div className="popup-subtitle">{t.appTagline}</div>
         </div>
         <div className="popup-header-right">
-          {(() => {
-            return isPaid(effectivePlan) ? (
-              // 결제 후: 요금제 칩 + 프로필 아바타 (클릭 시 로그아웃 메뉴)
-              <div className="account">
-                <span className={"plan-chip plan-" + effectivePlan}>
-                  {effectivePlan === "pro" ? t.planPro : t.planBasic}
-                </span>
-                <button
-                  type="button"
-                  className="account-avatar"
-                  title={settings.profileName}
-                  onClick={() => setAccountMenuOpen((v) => !v)}
-                >
-                  {settings.profileName.trim().charAt(0).toUpperCase()}
-                </button>
-                {accountMenuOpen && (
-                  <div className="account-menu">
-                    <button
-                      type="button"
-                      className="account-menu-item"
-                      onClick={handleLogout}
-                    >
-                      {t.logoutBtn}
-                    </button>
-                  </div>
-                )}
-              </div>
+          <div className="account">
+            {isPaid(effectivePlan) ? (
+              <span className={"plan-chip plan-" + effectivePlan}>
+                {effectivePlan === "pro" ? t.planPro : t.planBasic}
+              </span>
             ) : (
-              // 미로그인 또는 무료: 결제하러 가기
               <button type="button" className="pro-badge" onClick={openPricing}>
                 🔒 {t.ctaUnlock}
               </button>
-            );
-          })()}
+            )}
+            <button
+              type="button"
+              className="account-avatar"
+              onClick={() => setAccountMenuOpen((v) => !v)}
+            >
+              {settings.profileImageUrl && !avatarImgFailed ? (
+                <img
+                  src={settings.profileImageUrl}
+                  alt=""
+                  className="account-avatar-img"
+                  onError={() => setAvatarImgFailed(true)}
+                />
+              ) : null}
+            </button>
+            {accountMenuOpen && (
+              <div className="account-menu">
+                <button
+                  type="button"
+                  className="account-menu-item"
+                  onClick={handleLogout}
+                >
+                  {t.logoutBtn}
+                </button>
+              </div>
+            )}
+          </div>
           {target && status?.state === "available" && (
             <Switch
               checked={settings.enabled}
