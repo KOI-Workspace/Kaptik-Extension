@@ -40,7 +40,8 @@ export type ResponseMessage =
   | { type: "REPORT_OK" }
   | { type: "ERR"; error: string }
   | { type: "ERR_PLAN_REQUIRED" }
-  | { type: "ERR_MONTHLY_LIMIT" };
+  | { type: "ERR_MONTHLY_LIMIT" }
+  | { type: "ERR_CONCURRENT_JOB" };
 
 /** background → content 브로드캐스트 */
 export type BroadcastMessage =
@@ -100,10 +101,11 @@ export async function startGeneration(
   videoId: string,
   force = false,
   language?: string,
-): Promise<number | null | "plan_required" | "monthly_limit"> {
+): Promise<number | null | "plan_required" | "monthly_limit" | "concurrent_job"> {
   const res = await send({ type: "START_GENERATION", platform, videoId, force, language });
   if (res?.type === "ERR_PLAN_REQUIRED") return "plan_required";
   if (res?.type === "ERR_MONTHLY_LIMIT") return "monthly_limit";
+  if (res?.type === "ERR_CONCURRENT_JOB") return "concurrent_job";
   return res?.type === "GENERATION_STARTED" ? res.etaSeconds : null;
 }
 

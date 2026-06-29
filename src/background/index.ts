@@ -25,6 +25,8 @@ import {
   readLiveCues,
   writeLiveCues,
   setMonthlyLimit,
+  hasActiveJobs,
+  hasActiveJobForOtherVideo,
 } from "./generationStore";
 import { StreamingSession } from "@/api/wsClient";
 import { MockStreamingSession } from "@/api/mockStreamingSession";
@@ -380,6 +382,12 @@ async function handleStartGeneration(
   if (platform !== "youtube") {
     return { type: "ERR", error: `${platform} VOD 자막 생성은 지원하지 않습니다` };
   }
+
+  // 1계정 1번역 제한: 다른 영상의 active job 또는 활성 라이브 세션이 있으면 차단
+  if (await hasActiveJobForOtherVideo(platform, videoId) || liveSessions.size > 0) {
+    return { type: "ERR_CONCURRENT_JOB" };
+  }
+
   const url = `https://www.youtube.com/watch?v=${videoId}`;
 
   let jobId: string;
@@ -541,6 +549,12 @@ async function handleStartLiveStreaming(
     if (prev.timeSyncTimer) clearInterval(prev.timeSyncTimer);
     chrome.runtime.sendMessage({ type: "STOP_CAPTURE" }).catch(() => {});
     liveSessions.delete(tabId);
+  }
+
+  // 1계정 1번역 제한: 다른 탭의 활성 라이브 세션 또는 활성 VOD job이 있으면 차단
+  // (이 시점에 이 탭의 이전 세션은 이미 정리됨)
+  if (liveSessions.size > 0 || await hasActiveJobs()) {
+    return { type: "ERR_CONCURRENT_JOB" };
   }
 
   // 광고 중에는 서버 연결/탭 오디오 캡처를 시작하지 않는다.

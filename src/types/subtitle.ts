@@ -115,10 +115,12 @@ export interface SubtitleTrack {
  * - generating: 생성 중 (남은 시간/진행률 제공)
  * - failed: 생성 실패 (reason="not_korean"이면 한국어 영상이 아니라 생성 불가)
  * - monthly_limit: 월간 24시간 사용 한도 초과
+ * - concurrent_job: 같은 계정에서 이미 번역이 진행 중 (1계정 1번역 제한)
  */
 export type SubtitleStatus =
   | { state: "available"; isLive?: boolean; speakerIdentifiable?: boolean }
   | { state: "none" }
   | { state: "generating"; etaSeconds: number; progress: number; step?: string }
   | { state: "failed"; reason?: string }
-  | { state: "monthly_limit" };
+  | { state: "monthly_limit" }
+  | { state: "concurrent_job" };

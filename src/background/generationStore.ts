@@ -317,6 +317,19 @@ export async function completeLocalJob(
   return markDone(keyOf(platform, videoId));
 }
 
+/** 현재 진행 중인 job이 있으면 true. 라이브 세션 시작 전 concurrent 체크에 사용. */
+export async function hasActiveJobs(): Promise<boolean> {
+  const jobs = await readJobs();
+  return Object.keys(jobs).length > 0;
+}
+
+/** 지정된 videoId 외에 다른 진행 중인 job이 있으면 true. VOD 시작 전 concurrent 체크에 사용. */
+export async function hasActiveJobForOtherVideo(platform: Platform, videoId: string): Promise<boolean> {
+  const jobs = await readJobs();
+  const thisKey = keyOf(platform, videoId);
+  return Object.keys(jobs).some(k => k !== thisKey);
+}
+
 export async function removeAvailable(platform: Platform, videoId: string): Promise<void> {
   const key = keyOf(platform, videoId);
   // 모든 저장소 데이터를 한 번에 읽는다 (배치 최적화)

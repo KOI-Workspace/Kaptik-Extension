@@ -14,6 +14,7 @@ import {
   requestStatus,
   startGeneration,
   setLiveLang,
+  type ResponseMessage,
 } from "@/shared/messaging";
 import { patchUserProfile } from "@/api/client";
 import {
@@ -187,6 +188,9 @@ export function Popup() {
         patch({ plan: "basic" as any });
       } else if (eta === "monthly_limit") {
         setStatus({ state: "monthly_limit" });
+      } else if (eta === "concurrent_job") {
+        prevStatusStateRef.current = "concurrent_job";
+        setStatus({ state: "concurrent_job" });
       } else if (eta === null) {
         setStatus({ state: "failed" });
       } else {
@@ -214,7 +218,7 @@ export function Popup() {
     } catch {
       /* content script 미응답 → 0 사용 */
     }
-    void chrome.runtime.sendMessage({
+    const resp = await chrome.runtime.sendMessage({
       type: "START_LIVE_STREAMING",
       platform: target.platform,
       videoId: target.videoId,
@@ -223,6 +227,10 @@ export function Popup() {
       videoTitle,
       videoUrl,
     });
+    if ((resp as ResponseMessage | null)?.type === "ERR_CONCURRENT_JOB") {
+      prevStatusStateRef.current = "concurrent_job";
+      setStatus({ state: "concurrent_job" });
+    }
   };
 
   const handleRetry = () => {
@@ -251,6 +259,9 @@ export function Popup() {
         patch({ plan: "basic" as any });
       } else if (eta === "monthly_limit") {
         setStatus({ state: "monthly_limit" });
+      } else if (eta === "concurrent_job") {
+        prevStatusStateRef.current = "concurrent_job";
+        setStatus({ state: "concurrent_job" });
       } else if (eta === null) {
         setStatus({ state: "failed" });
       } else {
@@ -361,6 +372,10 @@ export function Popup() {
 
       {target && !locked && status?.state === "monthly_limit" && (
         <MonthlyLimitView />
+      )}
+
+      {target && !locked && status?.state === "concurrent_job" && (
+        <ConcurrentJobView onRetry={handleRetry} />
       )}
 
       {target && !locked && status?.state === "failed" && (
@@ -639,6 +654,21 @@ export function MonthlyLimitView() {
           ❓Question
         </a>
       </div>
+    </div>
+  );
+}
+
+export function ConcurrentJobView({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="state-block">
+      <div className="state-emoji">⏳</div>
+      <div className="state-title">Translation in Use</div>
+      <div className="state-desc">
+        You can only translate one at a time. Translation is currently in use.
+      </div>
+      <button type="button" className="btn-primary" onClick={onRetry}>
+        Retry
+      </button>
     </div>
   );
 }
