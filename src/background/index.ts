@@ -302,11 +302,18 @@ async function handleGetStatus(
   // - 활성 세션 있으나 아직 첫 자막 전 → "generating" (캡처 중, 첫 자막 대기)
   // - 세션 없음 → "none" (Start 버튼 표시 — 새로고침/재진입 후 항상 Start를 다시 눌러야 함)
   if (platform !== "youtube") {
+    const settings = await getSettings();
+    const language = msgLanguage ?? settings.language;
+
+    // 라이브 스트리밍도 월간 한도 체크를 우선 수행
+    const localStatus = await getLocalStatus(platform, videoId, language);
+    if (localStatus.state === "monthly_limit") {
+      return { type: "STATUS_OK", status: localStatus };
+    }
+
     const session = [...liveSessions.values()].find(
       (s) => s.platform === platform && s.videoId === videoId,
     );
-    const settings = await getSettings();
-    const language = msgLanguage ?? settings.language;
     if (!session) {
       return { type: "STATUS_OK", status: { state: "none" } };
     }
