@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { SubtitleCue } from "@/types/subtitle";
 import {
   DEFAULT_SETTINGS,
@@ -43,8 +43,6 @@ export function findActiveCueIndex(cues: SubtitleCue[], currentTime: number): nu
 
 /** seekable.end() 기준 라이브 엣지 판정 오차(초). HLS 플레이어가 세그먼트를 ~30초 미리 당겨 seekable에 반영하므로 그보다 여유를 둔다. */
 const LIVE_EDGE_SEEKABLE_TOLERANCE_SEC = 45;
-/** 마지막 cue의 end 이후 최대 몇 초까지 오버레이를 유지할지. 오디오 파이프라인 지연(~13s) - cue 길이(~6s) = ~7s 소모 후 약 13초 여유를 준다. */
-const LIVE_EDGE_CUE_TOLERANCE_SEC = 20;
 
 /**
  * 현재 재생 위치가 라이브 엣지(실시간 끝부분)에 가까운지 확인한다.
@@ -66,28 +64,6 @@ function getSeekableEnd(video: HTMLVideoElement): number | null {
 }
 
 /**
- * 화면에 표시할 자막 큐 인덱스를 고른다.
- * - 구간 매칭되면 그대로 사용 (되감기·녹화 영상 = 구간 동기가 정확해야 함)
- * - 라이브 엣지에서 구간 매칭이 빠졌는데 최신 cue가 현재 위치 근처면 그 cue를 표시.
- *   라이브 엣지에서는 오디오 처리 지연으로 cue.start가 영상 위치보다 앞뒤로 살짝
- *   어긋나 구간 매칭에서 누락되기 때문 (살짝 늦더라도 최신 자막을 띄워준다).
- *   되감기 후 무음 구간처럼 최신 cue가 한참 미래면 억지로 띄우지 않는다.
- */
-export function findDisplayCueIndex(
-  cues: SubtitleCue[],
-  currentTime: number,
-  isLiveEdge: boolean,
-): number {
-  const active = findActiveCueIndex(cues, currentTime);
-  if (active !== -1 || !isLiveEdge || cues.length === 0) return active;
-
-  const last = cues[cues.length - 1];
-  return currentTime >= last.start && currentTime - last.end <= LIVE_EDGE_CUE_TOLERANCE_SEC
-    ? cues.length - 1
-    : -1;
-}
-
-/**
  * video의 현재 재생 위치에 해당하는 자막 큐 인덱스를 추적하는 훅.
  * requestAnimationFrame으로 현재 시각을 읽되, 인덱스가 바뀔 때만 리렌더한다.
  * @param video 기준 video 요소
@@ -101,6 +77,7 @@ export function useActiveIndex(
   isLive = false,
 ): number {
   const [index, setIndex] = useState(-1);
+  const fallbackRef = useRef({ cue: undefined as SubtitleCue | undefined, startTime: 0 });
 
   useEffect(() => {
     let rafId = 0;
@@ -108,7 +85,30 @@ export function useActiveIndex(
 
     const tick = () => {
       const liveEdge = isLive && isNearLiveEdge(video.currentTime, getSeekableEnd(video), LIVE_EDGE_SEEKABLE_TOLERANCE_SEC);
-      const found = findDisplayCueIndex(cues, video.currentTime, liveEdge);
+      let found = findActiveCueIndex(cues, video.currentTime);
+
+      // 라이브 엣지에서 활성 자막이 없을 때, 최신 번역(마지막 cue)을 띄운다.
+      if (found === -1 && liveEdge && cues.length > 0) {
+        const lastIdx = cues.length - 1;
+        const lastCue = cues[lastIdx];
+
+        // 타임스탬프 5초 여유: 서버 타임스탬프가 영상 위치보다 약간 앞서더라도 띄움
+        if (video.currentTime >= lastCue.start - 5) {
+          // 새 자막이 도착했으면 화면에 표시된 시간(startTime)을 현재 시각으로 초기화
+          if (fallbackRef.current.cue !== lastCue) {
+            fallbackRef.current.cue = lastCue;
+            fallbackRef.current.startTime = video.currentTime;
+          }
+
+          const elapsed = video.currentTime - fallbackRef.current.startTime;
+          // elapsed >= 0: 사용자가 과거 침묵 구간으로 되감기(seek) 한 것이 아닐 때
+          // elapsed <= 4: 표시한 시점부터 4초까지만 유지
+          if (elapsed >= 0 && elapsed <= 4) {
+            found = lastIdx;
+          }
+        }
+      }
+
       if (found !== last) {
         last = found;
         setIndex(found);
@@ -132,7 +132,8 @@ export function findStickyPanelIndex(cues: SubtitleCue[], currentTime: number): 
   const active = findActiveCueIndex(cues, currentTime);
   if (active !== -1) return active;
   for (let i = cues.length - 1; i >= 0; i--) {
-    if (cues[i].start <= currentTime) return i;
+    // 5초 여유: 최신 자막 타임스탬프가 영상보다 약간 미래라도 강조 (라이브 엣지 즉각 반응)
+    if (cues[i].start - 5 <= currentTime) return i;
   }
   return -1;
 }

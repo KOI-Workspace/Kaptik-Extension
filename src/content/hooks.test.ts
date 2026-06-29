@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findActiveCueIndex, findDisplayCueIndex, findStickyPanelIndex, isNearLiveEdge } from "./hooks";
+import { findActiveCueIndex, findStickyPanelIndex, isNearLiveEdge } from "./hooks";
 import type { SubtitleCue } from "@/types/subtitle";
 
 const cues = [
@@ -40,37 +40,6 @@ describe("findActiveCueIndex — 영상 시간 기준 활성 자막", () => {
   });
 });
 
-describe("findDisplayCueIndex — 라이브 엣지 최신 cue 폴백", () => {
-  it("구간 매칭되면 라이브여도 그대로 사용한다 (되감기·녹화 동기 유지)", () => {
-    expect(findDisplayCueIndex(cues, 20, true)).toBe(1);
-    expect(findDisplayCueIndex(cues, 36, true)).toBe(2);
-  });
-
-  it("라이브 엣지가 아니면 구간 밖에서 폴백하지 않는다 (VOD/되감기 무음 구간)", () => {
-    expect(findDisplayCueIndex(cues, 30, false)).toBe(-1);
-  });
-
-  it("라이브 엣지: 파이프라인 지연으로 cue.end가 이미 지났어도 허용 오차 내면 표시", () => {
-    // currentTime=48, 최신 cue end=37 → currentTime-end=11초로 허용 오차(20s) 내 → 표시
-    expect(findActiveCueIndex(cues, 48)).toBe(-1);
-    expect(findDisplayCueIndex(cues, 48, true)).toBe(2);
-  });
-
-  it("라이브 엣지: cue.end 기준 20초 초과하면 소거한다", () => {
-    // currentTime=58, 최신 cue end=37 → currentTime-end=21초 > 20s → -1
-    expect(findDisplayCueIndex(cues, 58, true)).toBe(-1);
-  });
-
-  it("되감기 후 무음 구간: currentTime이 최신 cue.start보다 과거면 억지로 띄우지 않는다", () => {
-    // 영상 5초(최신 cue.start=35보다 훨씬 과거) → currentTime < last.start → -1
-    expect(findDisplayCueIndex(cues, 5, true)).toBe(-1);
-  });
-
-  it("cue가 없으면 -1", () => {
-    expect(findDisplayCueIndex([], 10, true)).toBe(-1);
-  });
-});
-
 describe("findStickyPanelIndex — 라이브 패널 강조 (침묵 구간 sticky)", () => {
   it("구간 안에 있으면 해당 인덱스를 반환한다", () => {
     expect(findStickyPanelIndex(cues, 20)).toBe(1);
@@ -85,7 +54,7 @@ describe("findStickyPanelIndex — 라이브 패널 강조 (침묵 구간 sticky
   });
 
   it("첫 cue 시작 전에는 -1을 반환한다 (아직 발화 없음)", () => {
-    expect(findStickyPanelIndex(cues, 5)).toBe(-1);
+    expect(findStickyPanelIndex(cues, 4)).toBe(-1);
   });
 
   it("cue가 없으면 -1", () => {
